@@ -1,28 +1,39 @@
 """
-Лёгкий мессенджер: регистрация, аватарки, P2P-передача файлов, автоочистка.
+Лёгкий мессенджер: регистрация, аватарки, передача файлов, автоочистка.
 
 - База: SQLite локально / PostgreSQL на хостинге (через DATABASE_URL).
 - Аватарки хранятся в базе (маленькие, сжатые на стороне браузера).
-- Файлы НЕ хранятся на сервере: они передаются напрямую между браузерами
-  по WebRTC. Сервер используется только как "посредник" для установления
-  соединения (обмен сигналами). Отправитель должен быть онлайн.
+- Файлы загружаются на сервер ВРЕМЕННО: доходят в любой сети, отправителю
+  не нужно держать вкладку открытой. Удаляются автоматически через 24 часа.
 - Сообщения старше 7 дней автоматически удаляются.
 """
 
 import os
+import uuid
+import json
 from datetime import datetime, timezone, timedelta
 
 from flask import (
     Flask, request, session, redirect, url_for,
-    render_template, jsonify, g
+    render_template, jsonify, g, send_file, abort
 )
 from werkzeug.security import generate_password_hash, check_password_hash
+from werkzeug.utils import secure_filename
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "change-me-please-12345")
 
-# Сколько хранить сообщения (дней)
+# Сколько хранить сообщения (дней) и файлы (часов)
 MESSAGE_TTL_DAYS = 7
+FILE_TTL_HOURS = 24
+
+# Максимальный размер загружаемого файла (25 МБ — безопасно для бесплатного хостинга)
+MAX_FILE_MB = 25
+app.config["MAX_CONTENT_LENGTH"] = MAX_FILE_MB * 1024 * 1024
+
+# Папка для временных файлов
+UPLOAD_DIR = os.environ.get("UPLOAD_DIR", "uploads")
+os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 # -----------------------------------------------------------------------------
 # Выбор базы данных
@@ -85,78 +96,67 @@ def safe_alter(sql):
         db.commit()
         cur.close()
     except Exception:
-        # колонка уже есть — это нормально
-        get_db().rollback() if USE_POSTGRES else None
+        if USE_POSTGRES:
+            get_db().rollback()
 
 
 def init_db():
     if USE_POSTGRES:
         users_sql = """
             CREATE TABLE IF NOT EXISTS users (
-                id       SERIAL PRIMARY KEY,
-                username TEXT UNIQUE NOT NULL,
-                pw_hash  TEXT NOT NULL,
-                avatar   TEXT
-            )"""
+                id SERIAL PRIMARY KEY, username TEXT UNIQUE NOT NULL,
+                pw_hash TEXT NOT NULL, avatar TEXT)"""
         msgs_sql = """
             CREATE TABLE IF NOT EXISTS messages (
-                id       SERIAL PRIMARY KEY,
-                username TEXT NOT NULL,
-                text     TEXT NOT NULL,
-                kind     TEXT DEFAULT 'text',
-                created  TEXT NOT NULL
-            )"""
-        signals_sql = """
-            CREATE TABLE IF NOT EXISTS signals (
-                id       SERIAL PRIMARY KEY,
-                target   TEXT NOT NULL,
-                sender   TEXT NOT NULL,
-                data     TEXT NOT NULL,
-                created  TEXT NOT NULL
-            )"""
+                id SERIAL PRIMARY KEY, username TEXT NOT NULL, text TEXT NOT NULL,
+                kind TEXT DEFAULT 'text', created TEXT NOT NULL)"""
+        files_sql = """
+            CREATE TABLE IF NOT EXISTS files (
+                id TEXT PRIMARY KEY, name TEXT NOT NULL, size INTEGER NOT NULL,
+                path TEXT NOT NULL, owner TEXT NOT NULL, created TEXT NOT NULL)"""
     else:
         users_sql = """
             CREATE TABLE IF NOT EXISTS users (
-                id       INTEGER PRIMARY KEY AUTOINCREMENT,
-                username TEXT UNIQUE NOT NULL,
-                pw_hash  TEXT NOT NULL,
-                avatar   TEXT
-            )"""
+                id INTEGER PRIMARY KEY AUTOINCREMENT, username TEXT UNIQUE NOT NULL,
+                pw_hash TEXT NOT NULL, avatar TEXT)"""
         msgs_sql = """
             CREATE TABLE IF NOT EXISTS messages (
-                id       INTEGER PRIMARY KEY AUTOINCREMENT,
-                username TEXT NOT NULL,
-                text     TEXT NOT NULL,
-                kind     TEXT DEFAULT 'text',
-                created  TEXT NOT NULL
-            )"""
-        signals_sql = """
-            CREATE TABLE IF NOT EXISTS signals (
-                id       INTEGER PRIMARY KEY AUTOINCREMENT,
-                target   TEXT NOT NULL,
-                sender   TEXT NOT NULL,
-                data     TEXT NOT NULL,
-                created  TEXT NOT NULL
-            )"""
+                id INTEGER PRIMARY KEY AUTOINCREMENT, username TEXT NOT NULL,
+                text TEXT NOT NULL, kind TEXT DEFAULT 'text', created TEXT NOT NULL)"""
+        files_sql = """
+            CREATE TABLE IF NOT EXISTS files (
+                id TEXT PRIMARY KEY, name TEXT NOT NULL, size INTEGER NOT NULL,
+                path TEXT NOT NULL, owner TEXT NOT NULL, created TEXT NOT NULL)"""
     db = get_db()
     cur = db.cursor()
     cur.execute(users_sql)
     cur.execute(msgs_sql)
-    cur.execute(signals_sql)
+    cur.execute(files_sql)
     db.commit()
     cur.close()
-    # Миграции для старых баз
     safe_alter("ALTER TABLE users ADD COLUMN avatar TEXT")
     safe_alter("ALTER TABLE messages ADD COLUMN kind TEXT DEFAULT 'text'")
 
 
 def cleanup_old():
-    """Удаляет сообщения старше MESSAGE_TTL_DAYS и старые сигналы."""
+    """Удаляет старые сообщения и файлы."""
+    # Сообщения старше N дней
     cutoff = (datetime.now(timezone.utc) - timedelta(days=MESSAGE_TTL_DAYS)).isoformat()
     query(f"DELETE FROM messages WHERE created < {PLACEHOLDER}", (cutoff,), commit=True)
-    # сигналы живут секунды — чистим всё старше 1 минуты, чтобы не копились
-    sig_cutoff = (datetime.now(timezone.utc) - timedelta(minutes=1)).isoformat()
-    query(f"DELETE FROM signals WHERE created < {PLACEHOLDER}", (sig_cutoff,), commit=True)
+
+    # Файлы старше N часов: сначала удаляем сами файлы с диска, потом записи
+    fcut = (datetime.now(timezone.utc) - timedelta(hours=FILE_TTL_HOURS)).isoformat()
+    old = query(
+        f"SELECT id, path FROM files WHERE created < {PLACEHOLDER}", (fcut,), fetch=True
+    )
+    for f in (old or []):
+        try:
+            if os.path.exists(f["path"]):
+                os.remove(f["path"])
+        except Exception:
+            pass
+    if old:
+        query(f"DELETE FROM files WHERE created < {PLACEHOLDER}", (fcut,), commit=True)
 
 
 # -----------------------------------------------------------------------------
@@ -166,7 +166,7 @@ def cleanup_old():
 def index():
     if "user" not in session:
         return redirect(url_for("login"))
-    return render_template("chat.html", user=session["user"])
+    return render_template("chat.html", user=session["user"], max_mb=MAX_FILE_MB)
 
 
 @app.route("/register", methods=["GET", "POST"])
@@ -193,10 +193,8 @@ def register():
                 error = "Такое имя уже занято"
             else:
                 query(
-                    f"INSERT INTO users (username, pw_hash) "
-                    f"VALUES ({PLACEHOLDER}, {PLACEHOLDER})",
-                    (username, generate_password_hash(password)),
-                    commit=True,
+                    f"INSERT INTO users (username, pw_hash) VALUES ({PLACEHOLDER}, {PLACEHOLDER})",
+                    (username, generate_password_hash(password)), commit=True,
                 )
                 session["user"] = username
                 return redirect(url_for("index"))
@@ -236,7 +234,7 @@ def set_avatar():
     avatar = (request.json or {}).get("avatar", "")
     if not avatar.startswith("data:image/"):
         return jsonify({"error": "bad"}), 400
-    if len(avatar) > 300_000:  # ~300 КБ максимум
+    if len(avatar) > 300_000:
         return jsonify({"error": "too_big"}), 400
     query(
         f"UPDATE users SET avatar = {PLACEHOLDER} WHERE username = {PLACEHOLDER}",
@@ -292,44 +290,59 @@ def send_message():
 
 
 # -----------------------------------------------------------------------------
-# WebRTC сигналинг (обмен техническими данными для P2P-соединения)
-# Сами файлы тут НЕ передаются — только координаты для прямого соединения.
+# Файлы: временное хранение на сервере с авто-удалением
 # -----------------------------------------------------------------------------
-@app.route("/api/signal", methods=["POST"])
-def post_signal():
+@app.route("/api/upload", methods=["POST"])
+def upload_file():
     if "user" not in session:
         return jsonify({"error": "auth"}), 401
-    body = request.json or {}
-    target = body.get("to", "")
-    data = body.get("data", "")
-    if not target or not data:
-        return jsonify({"error": "bad"}), 400
+    if "file" not in request.files:
+        return jsonify({"error": "no_file"}), 400
+    f = request.files["file"]
+    if not f or not f.filename:
+        return jsonify({"error": "no_file"}), 400
+
+    file_id = uuid.uuid4().hex
+    orig_name = f.filename
+    # имя на диске безопасное и уникальное
+    disk_name = file_id + "_" + (secure_filename(orig_name) or "file")
+    path = os.path.join(UPLOAD_DIR, disk_name)
+    f.save(path)
+    size = os.path.getsize(path)
+
     query(
-        f"INSERT INTO signals (target, sender, data, created) "
-        f"VALUES ({PLACEHOLDER}, {PLACEHOLDER}, {PLACEHOLDER}, {PLACEHOLDER})",
-        (target, session["user"], data, datetime.now(timezone.utc).isoformat()),
+        f"INSERT INTO files (id, name, size, path, owner, created) "
+        f"VALUES ({PLACEHOLDER}, {PLACEHOLDER}, {PLACEHOLDER}, {PLACEHOLDER}, {PLACEHOLDER}, {PLACEHOLDER})",
+        (file_id, orig_name, size, path, session["user"],
+         datetime.now(timezone.utc).isoformat()),
         commit=True,
     )
-    return jsonify({"ok": True})
 
-
-@app.route("/api/signals")
-def get_signals():
-    if "user" not in session:
-        return jsonify({"error": "auth"}), 401
-    me = session["user"]
-    rows = query(
-        f"SELECT id, sender, data FROM signals WHERE target = {PLACEHOLDER} "
-        f"ORDER BY id ASC",
-        (me,), fetch=True,
+    # Создаём сообщение-карточку в чате
+    meta = {"fileId": file_id, "name": orig_name, "size": size}
+    query(
+        f"INSERT INTO messages (username, text, kind, created) "
+        f"VALUES ({PLACEHOLDER}, {PLACEHOLDER}, {PLACEHOLDER}, {PLACEHOLDER})",
+        (session["user"], json.dumps(meta), "file",
+         datetime.now(timezone.utc).isoformat()),
+        commit=True,
     )
-    if rows:
-        max_id = max(r["id"] for r in rows)
-        query(
-            f"DELETE FROM signals WHERE target = {PLACEHOLDER} AND id <= {PLACEHOLDER}",
-            (me, max_id), commit=True,
-        )
-    return jsonify([{"sender": r["sender"], "data": r["data"]} for r in rows])
+    return jsonify({"ok": True, "fileId": file_id})
+
+
+@app.route("/api/file/<file_id>")
+def download_file(file_id):
+    if "user" not in session:
+        return abort(401)
+    rows = query(
+        f"SELECT name, path FROM files WHERE id = {PLACEHOLDER}", (file_id,), fetch=True
+    )
+    if not rows:
+        return abort(404)
+    info = rows[0]
+    if not os.path.exists(info["path"]):
+        return abort(404)
+    return send_file(info["path"], as_attachment=True, download_name=info["name"])
 
 
 with app.app_context():
