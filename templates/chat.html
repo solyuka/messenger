@@ -271,7 +271,18 @@
     const chunks = []; let received = 0;
     let answered = false;     // отправитель ответил (значит — он в сети)
     let opened = false;       // канал открылся (соединение установлено)
-    conns[key] = { pc, role: "receiver", markAnswered(){ answered = true; } };
+    let dead = false;         // соединение прекращено (файла нет и т.п.)
+    conns[key] = {
+      pc, role: "receiver",
+      markAnswered(){ answered = true; },
+      onAck(){ if(!opened && !dead) statusEl.textContent = "Отправитель онлайн, соединяемся…"; },
+      onNoFile(){
+        dead = true;
+        statusEl.textContent = "Файл уже недоступен — попросите отправить заново";
+        try{ pc.close(); }catch(e){}
+        delete conns[key];
+      }
+    };
 
     pc.onicecandidate = (ev)=>{ if(ev.candidate) sendSignal(owner, {t:"ice", fileId:meta.fileId, candidate:ev.candidate}); };
 
@@ -303,7 +314,7 @@
 
     // Этап 1: ждём ответ отправителя (он онлайн?) — 12 сек
     setTimeout(()=>{
-      if(!conns[key]) return;
+      if(!conns[key] || dead) return;
       if(!answered){
         statusEl.textContent = "Отправитель не в сети (его вкладка закрыта)";
         pc.close(); delete conns[key];
@@ -312,7 +323,7 @@
 
     // Этап 2: ответ есть, но соединение не установилось — 30 сек
     setTimeout(()=>{
-      if(!conns[key]) return;
+      if(!conns[key] || dead) return;
       if(answered && !opened){
         statusEl.textContent = "Сеть не пропускает соединение. Попробуйте Wi-Fi/VPN";
         pc.close(); delete conns[key];
@@ -322,8 +333,15 @@
 
   // ---- Отправитель: получил запрос на свой файл ----
   async function handleOffer(sender, payload){
+    // Сразу подтверждаем получателю, что мы онлайн (он перестанет думать "не в сети")
+    sendSignal(sender, { t:"ack", fileId: payload.fileId });
+
     const f = myFiles[payload.fileId];
-    if(!f) return; // файла нет (перезагрузили страницу) — игнор
+    if(!f){
+      // файла уже нет в памяти (страницу перезагрузили / вкладку усыпили)
+      sendSignal(sender, { t:"nofile", fileId: payload.fileId });
+      return;
+    }
     const key = sender + "|" + payload.fileId;
     const pc = new RTCPeerConnection(STUN);
     conns[key] = { pc, role: "sender" };
@@ -376,6 +394,8 @@
         let p; try{ p = JSON.parse(s.data); }catch(e){ continue; }
         const key = s.sender + "|" + p.fileId;
         if(p.t === "offer"){ await handleOffer(s.sender, p); }
+        else if(p.t === "ack"){ const c = conns[key]; if(c){ if(c.markAnswered) c.markAnswered(); if(c.onAck) c.onAck(); } }
+        else if(p.t === "nofile"){ const c = conns[key]; if(c){ if(c.onNoFile) c.onNoFile(); } }
         else if(p.t === "answer"){ const c = conns[key]; if(c){ if(c.markAnswered) c.markAnswered(); await c.pc.setRemoteDescription(p.sdp); } }
         else if(p.t === "ice"){ const c = conns[key]; if(c){ try{ await c.pc.addIceCandidate(p.candidate); }catch(e){} } }
       }
