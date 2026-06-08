@@ -173,6 +173,7 @@ def cleanup_old():
 def index():
     if "user" not in session:
         return redirect(url_for("login"))
+    touch_presence()
     return render_template("chat.html", user=session["user"], max_mb=MAX_FILE_MB)
 
 
@@ -235,7 +236,7 @@ def logout():
 # Присутствие (онлайн-статус)
 # -----------------------------------------------------------------------------
 # Пользователь считается онлайн, если был активен в последние ONLINE_WINDOW сек
-ONLINE_WINDOW = 20
+ONLINE_WINDOW = 35
 
 
 def touch_presence():
@@ -248,6 +249,25 @@ def touch_presence():
         )
 
 
+@app.route("/api/heartbeat", methods=["POST"])
+def heartbeat():
+    """Лёгкий пинг: подтверждает, что пользователь онлайн."""
+    if "user" not in session:
+        return jsonify({"error": "auth"}), 401
+    touch_presence()
+    return jsonify({"ok": True})
+
+
+def is_online(last_seen):
+    if not last_seen:
+        return False
+    try:
+        seen = datetime.fromisoformat(last_seen)
+        return (datetime.now(timezone.utc) - seen).total_seconds() <= ONLINE_WINDOW
+    except Exception:
+        return False
+
+
 @app.route("/api/presence")
 def get_presence():
     """Возвращает словарь {username: True/False} — кто сейчас онлайн."""
@@ -255,18 +275,21 @@ def get_presence():
         return jsonify({"error": "auth"}), 401
     touch_presence()
     rows = query("SELECT username, last_seen FROM users", fetch=True)
-    now = datetime.now(timezone.utc)
-    result = {}
-    for r in rows:
-        online = False
-        if r.get("last_seen"):
-            try:
-                seen = datetime.fromisoformat(r["last_seen"])
-                online = (now - seen).total_seconds() <= ONLINE_WINDOW
-            except Exception:
-                online = False
-        result[r["username"]] = online
-    return jsonify(result)
+    return jsonify({r["username"]: is_online(r.get("last_seen")) for r in rows})
+
+
+@app.route("/api/users")
+def get_users():
+    """Все участники с аватаркой и онлайн-статусом (для панели участников)."""
+    if "user" not in session:
+        return jsonify({"error": "auth"}), 401
+    touch_presence()
+    rows = query("SELECT username, avatar, last_seen FROM users ORDER BY username", fetch=True)
+    return jsonify([
+        {"username": r["username"], "avatar": r.get("avatar"),
+         "online": is_online(r.get("last_seen"))}
+        for r in rows
+    ])
 
 
 # -----------------------------------------------------------------------------
@@ -399,6 +422,10 @@ def upload_file():
     f.save(path)
     size = os.path.getsize(path)
 
+    # является ли файл картинкой (для превью)
+    ext = os.path.splitext(orig_name)[1].lower()
+    is_image = ext in (".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp")
+
     query(
         f"INSERT INTO files (id, name, size, path, owner, created) "
         f"VALUES ({PLACEHOLDER}, {PLACEHOLDER}, {PLACEHOLDER}, {PLACEHOLDER}, {PLACEHOLDER}, {PLACEHOLDER})",
@@ -408,7 +435,7 @@ def upload_file():
     )
 
     # Создаём сообщение-карточку в чате
-    meta = {"fileId": file_id, "name": orig_name, "size": size}
+    meta = {"fileId": file_id, "name": orig_name, "size": size, "isImage": is_image}
     query(
         f"INSERT INTO messages (username, text, kind, created) "
         f"VALUES ({PLACEHOLDER}, {PLACEHOLDER}, {PLACEHOLDER}, {PLACEHOLDER})",
@@ -432,6 +459,22 @@ def download_file(file_id):
     if not os.path.exists(info["path"]):
         return abort(404)
     return send_file(info["path"], as_attachment=True, download_name=info["name"])
+
+
+@app.route("/api/image/<file_id>")
+def view_image(file_id):
+    """Отдаёт картинку для показа прямо в чате (не как вложение)."""
+    if "user" not in session:
+        return abort(401)
+    rows = query(
+        f"SELECT name, path FROM files WHERE id = {PLACEHOLDER}", (file_id,), fetch=True
+    )
+    if not rows:
+        return abort(404)
+    info = rows[0]
+    if not os.path.exists(info["path"]):
+        return abort(404)
+    return send_file(info["path"], download_name=info["name"])
 
 
 with app.app_context():

@@ -34,10 +34,43 @@
     header .me { font-size: 12px; opacity: .85; }
     header a { color: #e0e7ff; font-size: 13px; text-decoration: none; }
 
+    /* панель участников */
+    #members {
+      display: flex; gap: 16px; padding: 10px 16px; background: #fff;
+      border-bottom: 1px solid #e2e8f0; overflow-x: auto; flex-shrink: 0;
+    }
+    #members .member { display: flex; flex-direction: column; align-items: center; gap: 4px; min-width: 56px; }
+    #members .avawrap .ava {
+      width: 46px; height: 46px; border-radius: 50%; object-fit: cover; background: #c7d2fe;
+    }
+    #members .mname { font-size: 11px; color: #475569; max-width: 60px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    #members .mstat { font-size: 10px; }
+    #members .mstat.on { color: #22c55e; }
+    #members .mstat.off { color: #ef4444; }
+
     #messages {
       flex: 1; overflow-y: auto; padding: 16px;
       display: flex; flex-direction: column; gap: 10px;
     }
+
+    /* превью картинки в сообщении */
+    .imgprev {
+      display: block; margin-top: 4px; max-width: 240px; max-height: 240px;
+      border-radius: 10px; cursor: pointer; object-fit: cover;
+    }
+    .imgcap { font-size: 11px; opacity: .7; margin-top: 2px; }
+
+    /* полноэкранный просмотр картинки */
+    #lightbox {
+      display: none; position: fixed; inset: 0; background: rgba(0,0,0,.85);
+      z-index: 100; align-items: center; justify-content: center; flex-direction: column; gap: 14px;
+    }
+    #lightbox img { max-width: 92%; max-height: 80%; border-radius: 8px; }
+    #lightbox a {
+      color: #fff; background: #6366f1; padding: 10px 20px; border-radius: 10px;
+      text-decoration: none; font-size: 15px;
+    }
+    #lightbox .close { position: absolute; top: 16px; right: 20px; color: #fff; font-size: 32px; cursor: pointer; }
     .row { display: flex; gap: 8px; align-items: flex-end; max-width: 80%; }
     .row.mine { align-self: flex-end; flex-direction: row-reverse; }
     .row .avawrap .ava {
@@ -105,7 +138,15 @@
     </div>
   </header>
 
+  <div id="members"></div>
+
   <div id="messages"></div>
+
+  <div id="lightbox">
+    <span class="close" id="lightboxClose">✕</span>
+    <img id="lightboxImg" src="">
+    <a id="lightboxDownload" href="" download>⬇ Скачать</a>
+  </div>
 
   <div id="uploadBar">
     <span id="uploadName">Отправка…</span>
@@ -189,17 +230,63 @@
   // --------------------------------------------------------------- онлайн-статус
   async function loadPresence(){
     try{
-      const r = await fetch("/api/presence");
+      const r = await fetch("/api/users");   // участники + статусы + аватарки
       if(!r.ok) return;
-      presence = await r.json();
+      const users = await r.json();
+      presence = {};
+      users.forEach(u => { presence[u.username] = u.online; if(u.avatar) avatars[u.username] = u.avatar; });
+      presence[me] = true;   // я всегда онлайн для себя
+
       // мой кружок всегда зелёный
       document.getElementById("myDot").className = "dot online";
-      // обновляем точки у всех сообщений
+      // точки у сообщений
       document.querySelectorAll("[data-dot-user]").forEach(el=>{
         const u = el.getAttribute("data-dot-user");
         el.className = "dot" + (presence[u] ? " online" : "");
       });
+      renderMembers(users);
+      rerenderAvatars();
     }catch(e){}
+  }
+
+  // --------------------------------------------------------------- панель участников
+  function renderMembers(users){
+    const cont = document.getElementById("members");
+    cont.innerHTML = "";
+    // сначала онлайн, потом оффлайн
+    users.sort((a,b)=> (b.online?1:0)-(a.online?1:0) || a.username.localeCompare(b.username));
+    users.forEach(u=>{
+      const online = u.username === me ? true : u.online;
+      const m = document.createElement("div");
+      m.className = "member";
+      m.innerHTML = `
+        <div class="avawrap">
+          <img class="ava">
+          <span class="dot ${online ? "online" : ""}"></span>
+        </div>
+        <div class="mname"></div>
+        <div class="mstat ${online ? "on" : "off"}">${online ? "в сети" : "не в сети"}</div>`;
+      m.querySelector(".ava").src = avaFor(u.username);
+      m.querySelector(".mname").textContent = u.username === me ? (u.username + " (вы)") : u.username;
+      cont.appendChild(m);
+    });
+  }
+
+  // --------------------------------------------------------------- просмотр картинки
+  function openLightbox(viewUrl, downloadUrl, name){
+    document.getElementById("lightboxImg").src = viewUrl;
+    const dl = document.getElementById("lightboxDownload");
+    dl.href = downloadUrl; dl.setAttribute("download", name);
+    document.getElementById("lightbox").style.display = "flex";
+  }
+  document.getElementById("lightboxClose").onclick = ()=> document.getElementById("lightbox").style.display = "none";
+  document.getElementById("lightbox").onclick = (e)=>{
+    if(e.target.id === "lightbox") e.target.style.display = "none";
+  };
+
+  // --------------------------------------------------------------- пульс присутствия
+  async function heartbeat(){
+    try{ await fetch("/api/heartbeat", {method:"POST"}); }catch(e){}
   }
 
   // --------------------------------------------------------------- кто прочитал
@@ -255,7 +342,19 @@
       let meta; try{ meta = JSON.parse(m.text); }catch(e){ meta = null; }
       bubble.innerHTML = `<div class="who"></div>`;
       bubble.querySelector(".who").textContent = m.username;
-      if(meta){
+      if(meta && meta.isImage){
+        // превью картинки прямо в чате
+        const img = document.createElement("img");
+        img.className = "imgprev";
+        img.src = "/api/image/" + meta.fileId;
+        img.alt = meta.name;
+        img.onclick = ()=> openLightbox("/api/image/" + meta.fileId, "/api/file/" + meta.fileId, meta.name);
+        bubble.appendChild(img);
+        const cap = document.createElement("div");
+        cap.className = "imgcap";
+        cap.textContent = meta.name + " · " + fmtSize(meta.size);
+        bubble.appendChild(cap);
+      } else if(meta){
         const a = document.createElement("a");
         a.className = "file";
         a.href = "/api/file/" + meta.fileId;
@@ -364,12 +463,13 @@
   window.addEventListener("focus", reportRead);
 
   // --------------------------------------------------------------- старт
+  heartbeat();
   loadAvatars();
   loadPresence();
   pollMessages();
   setInterval(pollMessages, 2000);
-  setInterval(loadAvatars, 15000);
-  setInterval(loadPresence, 8000);   // онлайн-статус каждые 8 сек
+  setInterval(heartbeat, 10000);     // пульс "я онлайн" каждые 10 сек
+  setInterval(loadPresence, 6000);   // онлайн-статус + участники каждые 6 сек
   setInterval(loadReads, 4000);      // отметки прочтения каждые 4 сек
   setInterval(reportRead, 5000);     // периодически подтверждаем прочтение
   </script>
