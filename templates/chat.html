@@ -85,7 +85,7 @@
   </header>
 
   <div id="messages"></div>
-  <div class="hint">Файлы передаются напрямую между устройствами. Чтобы файл скачался, отправитель должен быть онлайн.</div>
+  <div class="hint">Файлы идут напрямую между устройствами. Чтобы файл скачался, вкладка отправителя должна быть открыта.</div>
 
   <form id="form">
     <button type="button" class="iconbtn" id="fileBtn" title="Прикрепить файл">📎</button>
@@ -104,7 +104,16 @@
   let lastId = 0;
   let avatars = {};                 // username -> dataURL
   const myFiles = {};               // fileId -> File (файлы, которые Я отправил, лежат у меня)
-  const STUN = { iceServers: [{ urls: "stun:stun.l.google.com:19302" }] };
+  // STUN помогает узнать свой адрес, TURN — ретранслирует, когда прямое
+  // соединение невозможно (строгий NAT, мобильный интернет и т.п.).
+  const STUN = { iceServers: [
+    { urls: "stun:stun.l.google.com:19302" },
+    { urls: "stun:stun1.l.google.com:19302" },
+    // бесплатные публичные TURN-серверы Open Relay (metered.ca)
+    { urls: "turn:openrelay.metered.ca:80", username: "openrelayproject", credential: "openrelayproject" },
+    { urls: "turn:openrelay.metered.ca:443", username: "openrelayproject", credential: "openrelayproject" },
+    { urls: "turn:openrelay.metered.ca:443?transport=tcp", username: "openrelayproject", credential: "openrelayproject" }
+  ]};
 
   const defaultAva =
     "data:image/svg+xml," + encodeURIComponent(
@@ -251,15 +260,28 @@
       return;
     }
     const statusEl = fileEl.querySelector(".status");
-    statusEl.textContent = "Соединение…";
+    statusEl.textContent = "Запрос отправлен…";
     const key = owner + "|" + meta.fileId;
+
+    // если был старый объект соединения — закроем
+    if(conns[key]){ try{ conns[key].pc.close(); }catch(e){} delete conns[key]; }
 
     const pc = new RTCPeerConnection(STUN);
     const ch = pc.createDataChannel("file");
     const chunks = []; let received = 0;
-    conns[key] = { pc, role: "receiver" };
+    let answered = false;     // отправитель ответил (значит — он в сети)
+    let opened = false;       // канал открылся (соединение установлено)
+    conns[key] = { pc, role: "receiver", markAnswered(){ answered = true; } };
 
     pc.onicecandidate = (ev)=>{ if(ev.candidate) sendSignal(owner, {t:"ice", fileId:meta.fileId, candidate:ev.candidate}); };
+
+    pc.oniceconnectionstatechange = ()=>{
+      const st = pc.iceConnectionState;
+      if(st === "checking" && answered) statusEl.textContent = "Устанавливаю соединение…";
+      if(st === "failed"){
+        statusEl.textContent = "Не удалось соединиться (сеть блокирует). Попробуйте ещё раз";
+      }
+    };
 
     ch.binaryType = "arraybuffer";
     ch.onmessage = (ev)=>{
@@ -273,14 +295,29 @@
       chunks.push(ev.data); received += ev.data.byteLength;
       statusEl.textContent = "Загрузка… " + Math.round(received/meta.size*100) + "%";
     };
-    ch.onopen = ()=>{ statusEl.textContent = "Передача…"; };
+    ch.onopen = ()=>{ opened = true; statusEl.textContent = "Передача…"; };
 
     const offer = await pc.createOffer();
     await pc.setLocalDescription(offer);
     sendSignal(owner, { t:"offer", fileId: meta.fileId, sdp: pc.localDescription });
-    // если отправитель не ответит за 15 сек
-    setTimeout(()=>{ if(conns[key] && pc.connectionState!=="connected" && statusEl.textContent.startsWith("Соединение")){
-      statusEl.textContent = "Отправитель не в сети"; pc.close(); delete conns[key]; }}, 15000);
+
+    // Этап 1: ждём ответ отправителя (он онлайн?) — 12 сек
+    setTimeout(()=>{
+      if(!conns[key]) return;
+      if(!answered){
+        statusEl.textContent = "Отправитель не в сети (его вкладка закрыта)";
+        pc.close(); delete conns[key];
+      }
+    }, 12000);
+
+    // Этап 2: ответ есть, но соединение не установилось — 30 сек
+    setTimeout(()=>{
+      if(!conns[key]) return;
+      if(answered && !opened){
+        statusEl.textContent = "Сеть не пропускает соединение. Попробуйте Wi-Fi/VPN";
+        pc.close(); delete conns[key];
+      }
+    }, 30000);
   }
 
   // ---- Отправитель: получил запрос на свой файл ----
@@ -339,7 +376,7 @@
         let p; try{ p = JSON.parse(s.data); }catch(e){ continue; }
         const key = s.sender + "|" + p.fileId;
         if(p.t === "offer"){ await handleOffer(s.sender, p); }
-        else if(p.t === "answer"){ const c = conns[key]; if(c) await c.pc.setRemoteDescription(p.sdp); }
+        else if(p.t === "answer"){ const c = conns[key]; if(c){ if(c.markAnswered) c.markAnswered(); await c.pc.setRemoteDescription(p.sdp); } }
         else if(p.t === "ice"){ const c = conns[key]; if(c){ try{ await c.pc.addIceCandidate(p.candidate); }catch(e){} } }
       }
     }catch(e){}
