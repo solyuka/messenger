@@ -116,6 +116,8 @@
   const input = document.getElementById("text");
   let lastId = 0;
   let avatars = {};
+  const shownIds = new Set();   // id уже показанных сообщений (защита от дублей)
+  let polling = false;          // флаг: запрос за сообщениями уже выполняется
 
   const defaultAva =
     "data:image/svg+xml," + encodeURIComponent(
@@ -169,6 +171,8 @@
 
   // --------------------------------------------------------------- сообщения
   function addMessage(m){
+    if(shownIds.has(m.id)) return;   // уже показано — пропускаем
+    shownIds.add(m.id);
     const mine = m.username === me;
     const row = document.createElement("div");
     row.className = "row " + (mine ? "mine" : "theirs");
@@ -214,14 +218,20 @@
   }
 
   async function pollMessages(){
+    if(polling) return;            // не запускаем второй запрос, пока идёт первый
+    polling = true;
     try{
       const res = await fetch("/api/messages?after=" + lastId);
       if(res.status === 401){ location.href="/login"; return; }
       const data = await res.json();
       const nearBottom = box.scrollHeight - box.scrollTop - box.clientHeight < 120;
-      data.forEach(addMessage);
-      if(data.length && nearBottom) box.scrollTop = box.scrollHeight;
+      let added = false;
+      data.forEach(m => {
+        if(!shownIds.has(m.id)){ addMessage(m); added = true; }
+      });
+      if(added && nearBottom) box.scrollTop = box.scrollHeight;
     }catch(e){}
+    finally{ polling = false; }
   }
 
   form.addEventListener("submit", async (e)=>{
