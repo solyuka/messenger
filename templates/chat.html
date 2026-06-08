@@ -15,10 +15,20 @@
       background: #6366f1; color: #fff; padding: 10px 16px;
       display: flex; align-items: center; gap: 12px; flex-shrink: 0;
     }
-    header .ava {
-      width: 38px; height: 38px; border-radius: 50%; object-fit: cover;
+    /* обёртка аватарки с индикатором онлайн */
+    .avawrap { position: relative; flex-shrink: 0; }
+    .avawrap .dot {
+      position: absolute; bottom: 0; right: 0;
+      width: 14px; height: 14px; border-radius: 50%;
+      background: #ef4444; border: 2px solid #fff;
+    }
+    .avawrap .dot.online { background: #22c55e; }
+
+    header .avawrap .ava {
+      width: 64px; height: 64px; border-radius: 50%; object-fit: cover;
       background: #c7d2fe; cursor: pointer; border: 2px solid #fff;
     }
+    header .avawrap .dot { width: 16px; height: 16px; }
     header .title { flex: 1; }
     header h1 { font-size: 16px; margin: 0; }
     header .me { font-size: 12px; opacity: .85; }
@@ -30,17 +40,19 @@
     }
     .row { display: flex; gap: 8px; align-items: flex-end; max-width: 80%; }
     .row.mine { align-self: flex-end; flex-direction: row-reverse; }
-    .row .ava {
-      width: 30px; height: 30px; border-radius: 50%; object-fit: cover;
-      background: #c7d2fe; flex-shrink: 0;
+    .row .avawrap .ava {
+      width: 52px; height: 52px; border-radius: 50%; object-fit: cover;
+      background: #c7d2fe;
     }
     .bubble { padding: 8px 12px; border-radius: 14px; line-height: 1.35; }
     .bubble .who { font-size: 12px; font-weight: 600; margin-bottom: 2px; opacity: .8; }
     .bubble .txt { white-space: pre-wrap; word-wrap: break-word; }
     .bubble .time { font-size: 10px; opacity: .6; margin-top: 3px; text-align: right; }
+    .bubble .reads { font-size: 10px; opacity: .85; margin-top: 2px; text-align: right; }
     .mine .bubble { background: #6366f1; color: #fff; }
     .mine .bubble .who { display: none; }
     .theirs .bubble { background: #fff; color: #1e293b; box-shadow: 0 1px 2px rgba(0,0,0,.1); }
+    .theirs .bubble .reads { display: none; }
 
     .file {
       display: flex; align-items: center; gap: 10px;
@@ -83,7 +95,10 @@
 </head>
 <body>
   <header>
-    <img id="myAvatar" class="ava" title="Сменить фото">
+    <div class="avawrap">
+      <img id="myAvatar" class="ava" title="Сменить фото">
+      <span class="dot online" id="myDot"></span>
+    </div>
     <div class="title">
       <h1>💬 Общий чат</h1>
       <div class="me">{{ user }} · <a href="/logout">выйти</a></div>
@@ -116,8 +131,10 @@
   const input = document.getElementById("text");
   let lastId = 0;
   let avatars = {};
+  let presence = {};            // username -> true/false (онлайн)
   const shownIds = new Set();   // id уже показанных сообщений (защита от дублей)
   let polling = false;          // флаг: запрос за сообщениями уже выполняется
+  let maxMineId = 0;            // id моего последнего сообщения (для отметок прочтения)
 
   const defaultAva =
     "data:image/svg+xml," + encodeURIComponent(
@@ -169,6 +186,49 @@
     });
   }
 
+  // --------------------------------------------------------------- онлайн-статус
+  async function loadPresence(){
+    try{
+      const r = await fetch("/api/presence");
+      if(!r.ok) return;
+      presence = await r.json();
+      // мой кружок всегда зелёный
+      document.getElementById("myDot").className = "dot online";
+      // обновляем точки у всех сообщений
+      document.querySelectorAll("[data-dot-user]").forEach(el=>{
+        const u = el.getAttribute("data-dot-user");
+        el.className = "dot" + (presence[u] ? " online" : "");
+      });
+    }catch(e){}
+  }
+
+  // --------------------------------------------------------------- кто прочитал
+  async function loadReads(){
+    try{
+      const r = await fetch("/api/reads");
+      if(!r.ok) return;
+      const reads = await r.json();   // username -> last_read_id
+      document.querySelectorAll("[data-reads-id]").forEach(el=>{
+        const mid = parseInt(el.getAttribute("data-reads-id"));
+        // кто прочитал это сообщение (кроме меня)
+        const who = Object.keys(reads).filter(u => u !== me && reads[u] >= mid);
+        el.textContent = who.length ? ("✓✓ прочитали: " + who.join(", ")) : "";
+      });
+    }catch(e){}
+  }
+
+  // отметить, что я прочитал всё до lastId
+  let lastReportedRead = 0;
+  async function reportRead(){
+    if(lastId > lastReportedRead){
+      lastReportedRead = lastId;
+      try{
+        await fetch("/api/read", {method:"POST", headers:{"Content-Type":"application/json"},
+          body: JSON.stringify({ last_id: lastId })});
+      }catch(e){}
+    }
+  }
+
   // --------------------------------------------------------------- сообщения
   function addMessage(m){
     if(shownIds.has(m.id)) return;   // уже показано — пропускаем
@@ -177,12 +237,19 @@
     const row = document.createElement("div");
     row.className = "row " + (mine ? "mine" : "theirs");
 
+    // аватарка с индикатором онлайн
+    const avawrap = document.createElement("div");
+    avawrap.className = "avawrap";
     const ava = document.createElement("img");
     ava.className = "ava"; ava.setAttribute("data-ava-user", m.username);
     ava.src = avaFor(m.username);
+    const dot = document.createElement("span");
+    dot.className = "dot"; dot.setAttribute("data-dot-user", m.username);
+    avawrap.appendChild(ava); avawrap.appendChild(dot);
 
     const bubble = document.createElement("div");
     bubble.className = "bubble";
+    if(mine){ maxMineId = Math.max(maxMineId, m.id); }
 
     if(m.kind === "file"){
       let meta; try{ meta = JSON.parse(m.text); }catch(e){ meta = null; }
@@ -206,13 +273,16 @@
       } else {
         const d = document.createElement("div"); d.textContent = "файл"; bubble.appendChild(d);
       }
+      const reads = document.createElement("div");
+      reads.className = "reads"; reads.setAttribute("data-reads-id", m.id);
+      bubble.appendChild(reads);
     } else {
-      bubble.innerHTML = `<div class="who"></div><div class="txt"></div><div class="time">${fmtTime(m.created)}</div>`;
+      bubble.innerHTML = `<div class="who"></div><div class="txt"></div><div class="time">${fmtTime(m.created)}</div><div class="reads" data-reads-id="${m.id}"></div>`;
       bubble.querySelector(".who").textContent = m.username;
       bubble.querySelector(".txt").textContent = m.text;
     }
 
-    row.appendChild(ava); row.appendChild(bubble);
+    row.appendChild(avawrap); row.appendChild(bubble);
     box.appendChild(row);
     lastId = Math.max(lastId, m.id);
   }
@@ -230,6 +300,7 @@
         if(!shownIds.has(m.id)){ addMessage(m); added = true; }
       });
       if(added && nearBottom) box.scrollTop = box.scrollHeight;
+      if(added && document.visibilityState === "visible"){ reportRead(); }
     }catch(e){}
     finally{ polling = false; }
   }
@@ -286,11 +357,21 @@
     xhr.send(fd);
   }
 
+  // когда пользователь вернулся на вкладку — отмечаем прочтение
+  document.addEventListener("visibilitychange", ()=>{
+    if(document.visibilityState === "visible") reportRead();
+  });
+  window.addEventListener("focus", reportRead);
+
   // --------------------------------------------------------------- старт
   loadAvatars();
+  loadPresence();
   pollMessages();
   setInterval(pollMessages, 2000);
   setInterval(loadAvatars, 15000);
+  setInterval(loadPresence, 8000);   // онлайн-статус каждые 8 сек
+  setInterval(loadReads, 4000);      // отметки прочтения каждые 4 сек
+  setInterval(reportRead, 5000);     // периодически подтверждаем прочтение
   </script>
 </body>
 </html>

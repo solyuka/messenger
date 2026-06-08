@@ -132,10 +132,17 @@ def init_db():
     cur.execute(users_sql)
     cur.execute(msgs_sql)
     cur.execute(files_sql)
+    # таблица прочтений: до какого id сообщения каждый пользователь дочитал
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS reads (
+            username TEXT PRIMARY KEY,
+            last_read_id INTEGER DEFAULT 0
+        )""")
     db.commit()
     cur.close()
     safe_alter("ALTER TABLE users ADD COLUMN avatar TEXT")
     safe_alter("ALTER TABLE messages ADD COLUMN kind TEXT DEFAULT 'text'")
+    safe_alter("ALTER TABLE users ADD COLUMN last_seen TEXT")
 
 
 def cleanup_old():
@@ -225,6 +232,87 @@ def logout():
 
 
 # -----------------------------------------------------------------------------
+# Присутствие (онлайн-статус)
+# -----------------------------------------------------------------------------
+# Пользователь считается онлайн, если был активен в последние ONLINE_WINDOW сек
+ONLINE_WINDOW = 20
+
+
+def touch_presence():
+    """Обновляет время последней активности текущего пользователя."""
+    if "user" in session:
+        query(
+            f"UPDATE users SET last_seen = {PLACEHOLDER} WHERE username = {PLACEHOLDER}",
+            (datetime.now(timezone.utc).isoformat(), session["user"]),
+            commit=True,
+        )
+
+
+@app.route("/api/presence")
+def get_presence():
+    """Возвращает словарь {username: True/False} — кто сейчас онлайн."""
+    if "user" not in session:
+        return jsonify({"error": "auth"}), 401
+    touch_presence()
+    rows = query("SELECT username, last_seen FROM users", fetch=True)
+    now = datetime.now(timezone.utc)
+    result = {}
+    for r in rows:
+        online = False
+        if r.get("last_seen"):
+            try:
+                seen = datetime.fromisoformat(r["last_seen"])
+                online = (now - seen).total_seconds() <= ONLINE_WINDOW
+            except Exception:
+                online = False
+        result[r["username"]] = online
+    return jsonify(result)
+
+
+# -----------------------------------------------------------------------------
+# Прочтение сообщений
+# -----------------------------------------------------------------------------
+@app.route("/api/read", methods=["POST"])
+def mark_read():
+    """Отмечает, что текущий пользователь прочитал сообщения до last_id."""
+    if "user" not in session:
+        return jsonify({"error": "auth"}), 401
+    last_id = (request.json or {}).get("last_id", 0)
+    try:
+        last_id = int(last_id)
+    except Exception:
+        last_id = 0
+    me = session["user"]
+    # upsert: создаём запись или обновляем, не уменьшая значение
+    existing = query(
+        f"SELECT last_read_id FROM reads WHERE username = {PLACEHOLDER}",
+        (me,), fetch=True,
+    )
+    if existing:
+        cur_val = existing[0]["last_read_id"] or 0
+        if last_id > cur_val:
+            query(
+                f"UPDATE reads SET last_read_id = {PLACEHOLDER} WHERE username = {PLACEHOLDER}",
+                (last_id, me), commit=True,
+            )
+    else:
+        query(
+            f"INSERT INTO reads (username, last_read_id) VALUES ({PLACEHOLDER}, {PLACEHOLDER})",
+            (me, last_id), commit=True,
+        )
+    return jsonify({"ok": True})
+
+
+@app.route("/api/reads")
+def get_reads():
+    """Возвращает {username: last_read_id} — кто до какого сообщения дочитал."""
+    if "user" not in session:
+        return jsonify({"error": "auth"}), 401
+    rows = query("SELECT username, last_read_id FROM reads", fetch=True)
+    return jsonify({r["username"]: (r["last_read_id"] or 0) for r in rows})
+
+
+# -----------------------------------------------------------------------------
 # Аватарки
 # -----------------------------------------------------------------------------
 @app.route("/api/avatar", methods=["POST"])
@@ -258,6 +346,7 @@ def get_avatars():
 def get_messages():
     if "user" not in session:
         return jsonify({"error": "auth"}), 401
+    touch_presence()
     cleanup_old()
     after = request.args.get("after", 0, type=int)
     rows = query(
