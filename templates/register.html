@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Регистрация — Мессенджер</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; min-height: 100vh;
+      display: flex; align-items: center; justify-content: center;
+      font-family: -apple-system, Segoe UI, Roboto, sans-serif;
+      background: linear-gradient(135deg, #6366f1, #8b5cf6);
+    }
+    .card {
+      background: #fff; padding: 32px; border-radius: 16px;
+      box-shadow: 0 10px 40px rgba(0,0,0,.2); width: 320px;
+    }
+    h1 { margin: 0 0 4px; font-size: 22px; color: #1e293b; }
+    p.sub { margin: 0 0 20px; color: #64748b; font-size: 14px; }
+    input {
+      width: 100%; padding: 12px; margin-bottom: 12px;
+      border: 1px solid #cbd5e1; border-radius: 10px; font-size: 15px;
+    }
+    button {
+      width: 100%; padding: 12px; border: none; border-radius: 10px;
+      background: #6366f1; color: #fff; font-size: 16px; cursor: pointer;
+    }
+    button:hover { background: #4f46e5; }
+    .error {
+      background: #fee2e2; color: #b91c1c; padding: 10px;
+      border-radius: 8px; font-size: 14px; margin-bottom: 12px;
+    }
+    .link { text-align: center; margin-top: 14px; font-size: 14px; color: #64748b; }
+    .link a { color: #6366f1; text-decoration: none; }
+  </style>
+</head>
+<body>
+  <form class="card" method="post">
+    <h1>📝 Регистрация</h1>
+    <p class="sub">Создайте новый аккаунт</p>
+    {% if error %}<div class="error">{{ error }}</div>{% endif %}
+    <input name="username" placeholder="Имя пользователя" autofocus autocomplete="username">
+    <input name="password" type="password" placeholder="Пароль" autocomplete="new-password">
+    <input name="password2" type="password" placeholder="Повторите пароль" autocomplete="new-password">
+    <button type="submit">Зарегистрироваться</button>
+    <div class="link">Уже есть аккаунт? <a href="/login">Войти</a></div>
+  </form>
+</body>
+</html>
