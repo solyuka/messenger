@@ -8,65 +8,62 @@
     * { box-sizing: border-box; }
     html, body { height: 100%; margin: 0; }
 
-    /* ===== Цветовые темы через переменные ===== */
+    /* ===== Темы (повышенный контраст) ===== */
     :root {
-      --bg: #f1f5f9;
-      --header: #6366f1;
+      --bg: #e7ebf3;
+      --header: #4f46e5;
       --header-text: #ffffff;
       --panel: #ffffff;
-      --border: #e2e8f0;
-      --text: #1e293b;
-      --muted: #64748b;
+      --border: #cbd5e1;
+      --text: #0f172a;
+      --muted: #475569;
       --bubble-their: #ffffff;
-      --bubble-their-text: #1e293b;
-      --bubble-mine: #6366f1;
+      --bubble-their-text: #0f172a;
+      --bubble-mine: #4f46e5;
       --bubble-mine-text: #ffffff;
       --input-bg: #ffffff;
-      --input-border: #cbd5e1;
-      --icon-bg: #eef2ff;
-      --accent: #6366f1;
-      --hint-bg: #f8fafc;
+      --input-border: #94a3b8;
+      --icon-bg: #e0e7ff;
+      --accent: #4f46e5;
+      --hint-bg: #eef1f7;
       --avatar-bg: #c7d2fe;
-      --shadow: 0 1px 2px rgba(0,0,0,.1);
-      --divider: #94a3b8;
+      --shadow: 0 1px 3px rgba(0,0,0,.18);
+      --chip-bg: #eef2ff;
     }
     body.dark {
-      --bg: #0f172a;
+      --bg: #0b1120;
       --header: #1e293b;
-      --header-text: #e2e8f0;
-      --panel: #1e293b;
-      --border: #334155;
-      --text: #e2e8f0;
-      --muted: #94a3b8;
-      --bubble-their: #334155;
-      --bubble-their-text: #e2e8f0;
+      --header-text: #f1f5f9;
+      --panel: #1a2435;
+      --border: #3b4a63;
+      --text: #f1f5f9;
+      --muted: #b3c0d4;
+      --bubble-their: #29374f;
+      --bubble-their-text: #f1f5f9;
       --bubble-mine: #6366f1;
       --bubble-mine-text: #ffffff;
-      --input-bg: #0f172a;
-      --input-border: #475569;
-      --icon-bg: #334155;
-      --accent: #818cf8;
-      --hint-bg: #1e293b;
+      --input-bg: #0b1120;
+      --input-border: #4b5b75;
+      --icon-bg: #29374f;
+      --accent: #a5b4fc;
+      --hint-bg: #16202f;
       --avatar-bg: #475569;
-      --shadow: 0 1px 3px rgba(0,0,0,.4);
-      --divider: #64748b;
+      --shadow: 0 1px 4px rgba(0,0,0,.5);
+      --chip-bg: #29374f;
     }
 
     body {
       font-family: -apple-system, Segoe UI, Roboto, sans-serif;
       background: var(--bg); display: flex; flex-direction: column;
       color: var(--text); transition: background .25s, color .25s;
-      /* запрет выделения/копирования интерфейса по умолчанию */
       -webkit-user-select: none; -moz-user-select: none; -ms-user-select: none; user-select: none;
       -webkit-tap-highlight-color: transparent;
     }
-    /* картинки и иконки нельзя перетаскивать */
     img { -webkit-user-drag: none; user-drag: none; }
-    /* текст сообщений — выделять и копировать МОЖНО */
-    .bubble .txt, .imgcap, .file .name {
-      -webkit-user-select: text; -moz-user-select: text; -ms-user-select: text; user-select: text;
-      cursor: text;
+    .bubble .txt, .imgcap, .file .name, .reply-quote .rq-text {
+      -webkit-user-select: text; -moz-user-select: text; user-select: text; cursor: text;
     }
+
     header {
       background: var(--header); color: var(--header-text); padding: 10px 16px;
       display: flex; align-items: center; gap: 12px; flex-shrink: 0;
@@ -77,106 +74,133 @@
       width: 14px; height: 14px; border-radius: 50%;
       background: #ef4444; border: 2px solid var(--panel);
     }
-    .avawrap .dot.online { background: #22c55e; }
-
+    .avawrap .dot.online { background: #16a34a; }
     header .avawrap .ava {
       width: 64px; height: 64px; border-radius: 50%; object-fit: cover;
-      background: var(--avatar-bg); cursor: pointer; border: 2px solid rgba(255,255,255,.7);
+      background: var(--avatar-bg); cursor: pointer; border: 2px solid rgba(255,255,255,.85);
     }
     header .avawrap .dot { width: 16px; height: 16px; border-color: var(--header); }
     header .title { flex: 1; min-width: 0; }
     header h1 { font-size: 16px; margin: 0; }
-    header .me { font-size: 12px; opacity: .85; }
-    header a { color: inherit; font-size: 13px; text-decoration: underline; opacity: .85; }
+    header .me { font-size: 12px; opacity: .9; }
+    header a { color: inherit; font-size: 13px; text-decoration: underline; }
     .headbtn {
-      border: none; background: rgba(255,255,255,.15); color: var(--header-text);
-      width: 40px; height: 40px; border-radius: 50%; font-size: 18px; cursor: pointer;
-      flex-shrink: 0;
+      border: none; background: rgba(255,255,255,.2); color: var(--header-text);
+      width: 40px; height: 40px; border-radius: 50%; font-size: 18px; cursor: pointer; flex-shrink: 0;
     }
-    .headbtn:hover { background: rgba(255,255,255,.28); }
+    .headbtn:hover { background: rgba(255,255,255,.34); }
 
     #members {
       display: flex; gap: 16px; padding: 10px 16px; background: var(--panel);
       border-bottom: 1px solid var(--border); overflow-x: auto; flex-shrink: 0;
     }
-    /* по умолчанию свёрнуто */
     #members.collapsed { display: none; }
     .memToggle {
-      border: none; background: rgba(255,255,255,.15); color: var(--header-text);
+      border: none; background: rgba(255,255,255,.2); color: var(--header-text);
       font-size: 12px; padding: 3px 9px; border-radius: 12px; cursor: pointer;
       margin-left: 8px; vertical-align: middle;
     }
-    .memToggle:hover { background: rgba(255,255,255,.28); }
+    .memToggle:hover { background: rgba(255,255,255,.34); }
     #memArrow { display: inline-block; transition: transform .2s; }
     .memToggle.open #memArrow { transform: rotate(90deg); }
     #members .member { display: flex; flex-direction: column; align-items: center; gap: 4px; min-width: 56px; }
-    #members .avawrap .ava {
-      width: 46px; height: 46px; border-radius: 50%; object-fit: cover; background: var(--avatar-bg);
-    }
+    #members .avawrap .ava { width: 46px; height: 46px; border-radius: 50%; object-fit: cover; background: var(--avatar-bg); }
     #members .avawrap .dot { border-color: var(--panel); }
-    #members .mname { font-size: 11px; color: var(--muted); max-width: 60px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    #members .mstat { font-size: 10px; }
-    #members .mstat.on { color: #22c55e; }
+    #members .mname { font-size: 11px; color: var(--text); max-width: 60px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    #members .mstat { font-size: 10px; font-weight: 600; }
+    #members .mstat.on { color: #16a34a; }
     #members .mstat.off { color: #ef4444; }
 
     #chatArea { flex: 1; position: relative; overflow: hidden; display: flex; }
-    #messages {
-      flex: 1; overflow-y: auto; padding: 16px;
-      display: flex; flex-direction: column; gap: 10px;
-    }
+    #messages { flex: 1; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 10px; }
 
     .datesep {
-      align-self: center; font-size: 11px; color: var(--muted);
+      align-self: center; font-size: 11px; color: var(--muted); font-weight: 600;
       background: var(--hint-bg); padding: 3px 12px; border-radius: 12px; margin: 6px 0;
     }
 
-    .imgprev {
-      display: block; margin-top: 4px; max-width: 240px; max-height: 240px;
-      border-radius: 10px; cursor: pointer; object-fit: cover;
-    }
-    .imgcap { font-size: 11px; opacity: .7; margin-top: 2px; }
+    .imgprev { display: block; margin-top: 4px; max-width: 240px; max-height: 240px; border-radius: 10px; cursor: pointer; object-fit: cover; }
+    .imgcap { font-size: 11px; opacity: .8; margin-top: 2px; }
 
     #lightbox {
-      display: none; position: fixed; inset: 0; background: rgba(0,0,0,.88);
+      display: none; position: fixed; inset: 0; background: rgba(0,0,0,.9);
       z-index: 100; align-items: center; justify-content: center; flex-direction: column; gap: 14px;
     }
     #lightbox img { max-width: 92%; max-height: 80%; border-radius: 8px; }
-    #lightbox a {
-      color: #fff; background: var(--accent); padding: 10px 20px; border-radius: 10px;
-      text-decoration: none; font-size: 15px;
-    }
+    #lightbox a { color: #fff; background: var(--accent); padding: 10px 20px; border-radius: 10px; text-decoration: none; font-size: 15px; }
     #lightbox .close { position: absolute; top: 16px; right: 20px; color: #fff; font-size: 32px; cursor: pointer; }
 
-    .row { display: flex; gap: 8px; align-items: flex-end; max-width: 80%; }
+    .row { display: flex; gap: 8px; align-items: flex-end; max-width: 82%; position: relative; }
     .row.mine { align-self: flex-end; flex-direction: row-reverse; }
-    .row .avawrap .ava {
-      width: 52px; height: 52px; border-radius: 50%; object-fit: cover; background: var(--avatar-bg);
-    }
+    .row .avawrap .ava { width: 52px; height: 52px; border-radius: 50%; object-fit: cover; background: var(--avatar-bg); }
     .row .avawrap .dot { border-color: var(--bg); }
-    .bubble { padding: 8px 12px; border-radius: 14px; line-height: 1.35; }
-    .bubble .who { font-size: 12px; font-weight: 600; margin-bottom: 2px; opacity: .8; }
+    .bubble { padding: 8px 12px; border-radius: 14px; line-height: 1.4; position: relative; }
+    .bubble .who { font-size: 12px; font-weight: 700; margin-bottom: 2px; opacity: .9; }
     .bubble .txt { white-space: pre-wrap; word-wrap: break-word; overflow-wrap: anywhere; }
     .bubble .txt a { color: inherit; text-decoration: underline; }
-    .bubble .time { font-size: 10px; opacity: .6; margin-top: 3px; text-align: right; }
-    .bubble .reads { font-size: 10px; opacity: .85; margin-top: 2px; text-align: right; }
+    .bubble .time { font-size: 10px; opacity: .7; margin-top: 3px; text-align: right; }
+    .bubble .reads { font-size: 10px; opacity: .9; margin-top: 2px; text-align: right; }
     .mine .bubble { background: var(--bubble-mine); color: var(--bubble-mine-text); }
     .mine .bubble .who { display: none; }
-    .theirs .bubble { background: var(--bubble-their); color: var(--bubble-their-text); box-shadow: var(--shadow); }
+    .theirs .bubble { background: var(--bubble-their); color: var(--bubble-their-text); box-shadow: var(--shadow); border: 1px solid var(--border); }
     .theirs .bubble .reads { display: none; }
 
-    .file {
-      display: flex; align-items: center; gap: 10px;
-      padding: 8px; border-radius: 10px; margin-top: 2px;
-      background: rgba(127,127,127,.15); cursor: pointer; text-decoration: none; color: inherit;
+    /* цитата ответа внутри сообщения */
+    .reply-quote {
+      border-left: 3px solid var(--accent); padding: 3px 8px; margin-bottom: 5px;
+      background: rgba(127,127,127,.14); border-radius: 6px; cursor: pointer; font-size: 12px;
     }
-    .mine .file { background: rgba(255,255,255,.18); }
+    .mine .reply-quote { background: rgba(255,255,255,.2); border-left-color: #fff; }
+    .reply-quote .rq-who { font-weight: 700; }
+    .reply-quote .rq-text { opacity: .85; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block; max-width: 320px; }
+
+    /* подсветка при переходе к сообщению */
+    @keyframes flash { 0%{ box-shadow:0 0 0 3px var(--accent);} 100%{ box-shadow:none;} }
+    .row.flash .bubble { animation: flash 1.4s ease-out; }
+
+    .file {
+      display: flex; align-items: center; gap: 10px; padding: 8px; border-radius: 10px; margin-top: 4px;
+      background: rgba(127,127,127,.16); cursor: pointer; text-decoration: none; color: inherit;
+    }
+    .mine .file { background: rgba(255,255,255,.2); }
     .file .icon { font-size: 22px; }
     .file .info { flex: 1; min-width: 0; }
     .file .name { font-size: 14px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .file .size { font-size: 11px; opacity: .7; }
-    .file .dl { font-size: 11px; opacity: .8; }
+    .file .size { font-size: 11px; opacity: .8; }
+    .file .dl { font-size: 11px; opacity: .85; }
 
-    /* кнопка "вниз" */
+    /* кнопки действий при наведении (ответить / реакция) */
+    .msgActions {
+      display: none; gap: 2px; align-self: center;
+    }
+    .row:hover .msgActions { display: flex; }
+    .actBtn {
+      border: none; background: var(--panel); color: var(--text); border: 1px solid var(--border);
+      width: 30px; height: 30px; border-radius: 50%; cursor: pointer; font-size: 15px;
+      box-shadow: var(--shadow);
+    }
+    .actBtn:hover { background: var(--icon-bg); }
+
+    /* реакции под сообщением */
+    .reactions { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 5px; }
+    .reaction {
+      background: var(--chip-bg); border: 1px solid var(--border); border-radius: 12px;
+      padding: 1px 7px; font-size: 12px; cursor: pointer; display: flex; gap: 3px; align-items: center;
+    }
+    .reaction.mine-react { border-color: var(--accent); background: rgba(99,102,241,.18); }
+    .reaction .cnt { font-size: 11px; opacity: .85; }
+
+    /* всплывающий выбор эмодзи */
+    #emojiPicker {
+      position: absolute; z-index: 60; display: none;
+      background: var(--panel); border: 1px solid var(--border); border-radius: 12px;
+      box-shadow: 0 4px 18px rgba(0,0,0,.3); padding: 6px; gap: 2px;
+      grid-template-columns: repeat(6, 1fr);
+    }
+    #emojiPicker.open { display: grid; }
+    #emojiPicker button { border: none; background: none; font-size: 20px; cursor: pointer; padding: 4px; border-radius: 8px; }
+    #emojiPicker button:hover { background: var(--icon-bg); }
+
     #scrollDown {
       display: none; position: absolute; right: 18px; bottom: 18px;
       width: 44px; height: 44px; border-radius: 50%; border: none;
@@ -189,9 +213,28 @@
       display: none; align-items: center; justify-content: center;
     }
 
-    #typing {
-      font-size: 12px; color: var(--muted); padding: 2px 16px 0; min-height: 16px; font-style: italic;
+    #typing { font-size: 12px; color: var(--muted); padding: 2px 16px 0; min-height: 16px; font-style: italic; }
+
+    /* панель ответа над вводом */
+    #replyBar {
+      display: none; align-items: center; gap: 10px; padding: 8px 16px;
+      background: var(--hint-bg); border-top: 1px solid var(--border);
     }
+    #replyBar .rb-info { flex: 1; min-width: 0; font-size: 13px; border-left: 3px solid var(--accent); padding-left: 8px; }
+    #replyBar .rb-who { font-weight: 700; color: var(--accent); }
+    #replyBar .rb-text { opacity: .8; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    #replyBar .rb-close { cursor: pointer; font-size: 20px; color: var(--muted); }
+
+    /* прикреплённые файлы (чипы) над вводом */
+    #attachBar { display: none; flex-wrap: wrap; gap: 8px; padding: 8px 16px 0; }
+    .attchip {
+      display: flex; align-items: center; gap: 6px; background: var(--chip-bg);
+      border: 1px solid var(--border); border-radius: 10px; padding: 4px 6px 4px 8px; font-size: 12px; max-width: 200px;
+    }
+    .attchip img { width: 32px; height: 32px; border-radius: 6px; object-fit: cover; }
+    .attchip .an { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 110px; }
+    .attchip .ax { cursor: pointer; color: var(--muted); font-size: 16px; }
+    .attchip.loading { opacity: .6; }
 
     form {
       display: flex; gap: 8px; padding: 10px; background: var(--panel);
@@ -209,51 +252,80 @@
     }
     .sendbtn { background: var(--accent); color: #fff; }
     .iconbtn:hover { filter: brightness(.95); }
-    .hint {
-      font-size: 11px; color: var(--muted); text-align: center; padding: 4px;
-      background: var(--hint-bg);
-    }
-    #uploadBar {
-      display: none; padding: 6px 16px; background: var(--icon-bg); color: var(--accent);
-      font-size: 13px; align-items: center; gap: 10px;
-    }
+    .hint { font-size: 11px; color: var(--muted); text-align: center; padding: 4px; background: var(--hint-bg); }
+
+    #uploadBar { display: none; padding: 6px 16px; background: var(--icon-bg); color: var(--accent); font-size: 13px; align-items: center; gap: 10px; }
     #uploadBar .track { flex: 1; height: 6px; background: var(--avatar-bg); border-radius: 3px; overflow: hidden; }
     #uploadBar .fill { height: 100%; width: 0%; background: var(--accent); transition: width .2s; }
 
-    /* @упоминание внутри текста */
-    .mention {
-      background: rgba(99,102,241,.18); color: var(--accent);
-      font-weight: 600; border-radius: 5px; padding: 0 3px;
-    }
-    .mine .mention { background: rgba(255,255,255,.25); color: #fff; }
-    /* подсветка сообщения, где упомянули меня */
+    .mention { background: rgba(79,70,229,.2); color: var(--accent); font-weight: 700; border-radius: 5px; padding: 0 3px; }
+    .mine .mention { background: rgba(255,255,255,.3); color: #fff; }
     .row.mention-me .bubble { box-shadow: 0 0 0 2px var(--accent); }
 
-    /* личное сообщение */
-    .pmtag {
-      font-size: 10px; font-weight: 700; letter-spacing: .3px;
-      color: #fff; background: #a855f7; border-radius: 6px;
-      padding: 1px 6px; margin-bottom: 3px; display: inline-block;
-    }
-    .theirs .pm .bubble { background: #f3e8ff; }
-    body.dark .theirs .pm .bubble { background: #3b2a52; }
+    .pmtag { font-size: 10px; font-weight: 700; color: #fff; background: #9333ea; border-radius: 6px; padding: 1px 6px; margin-bottom: 3px; display: inline-block; }
+    .theirs.pm .bubble { background: #f3e8ff; color: #3b0764; }
+    body.dark .theirs.pm .bubble { background: #3b2a52; color: #f1f5f9; }
 
-    /* выпадающий список автодополнения @ */
+    /* выпадающий список автодополнения (@ и /w) */
     #mentionBox {
       position: absolute; bottom: 60px; left: 60px; z-index: 50;
       background: var(--panel); border: 1px solid var(--border);
-      border-radius: 10px; box-shadow: 0 4px 16px rgba(0,0,0,.25);
-      max-height: 200px; overflow-y: auto; min-width: 180px; display: none;
+      border-radius: 10px; box-shadow: 0 4px 16px rgba(0,0,0,.28);
+      max-height: 220px; overflow-y: auto; min-width: 200px; display: none;
     }
-    #mentionBox .item {
-      display: flex; align-items: center; gap: 8px; padding: 7px 10px; cursor: pointer;
-    }
+    #mentionBox .mhdr { font-size: 11px; color: var(--muted); padding: 6px 10px 2px; }
+    #mentionBox .item { display: flex; align-items: center; gap: 8px; padding: 7px 10px; cursor: pointer; }
     #mentionBox .item.active, #mentionBox .item:hover { background: var(--icon-bg); }
     #mentionBox .item img { width: 28px; height: 28px; border-radius: 50%; object-fit: cover; background: var(--avatar-bg); }
     #mentionBox .item .nm { font-size: 14px; color: var(--text); }
-    #mentionBox .item .st { font-size: 10px; margin-left: auto; }
-    #mentionBox .item .st.on { color: #22c55e; }
+    #mentionBox .item .st { font-size: 10px; margin-left: auto; font-weight: 700; }
+    #mentionBox .item .st.on { color: #16a34a; }
     #mentionBox .item .st.off { color: #ef4444; }
+
+    /* панель поиска */
+    #searchBar {
+      display: none; align-items: center; gap: 8px; padding: 8px 16px;
+      background: var(--panel); border-bottom: 1px solid var(--border);
+    }
+    #searchBar.show { display: flex; }
+    #searchInput {
+      flex: 1; padding: 8px 12px; border: 1px solid var(--input-border);
+      border-radius: 10px; font-size: 14px; outline: none; background: var(--input-bg); color: var(--text);
+    }
+    #searchInput:focus { border-color: var(--accent); }
+    #searchBar .sCount { font-size: 12px; color: var(--muted); min-width: 40px; text-align: center; }
+    #searchBar .sNav {
+      border: 1px solid var(--border); background: var(--icon-bg); color: var(--text);
+      width: 32px; height: 32px; border-radius: 8px; cursor: pointer; font-size: 13px;
+    }
+    #searchBar .sNav:hover { background: var(--accent); color: #fff; }
+    /* подсветка найденного */
+    .search-hit mark { background: #fde047; color: #000; border-radius: 3px; padding: 0 1px; }
+    .row.search-current .bubble { box-shadow: 0 0 0 3px #f59e0b; }
+
+    /* отметка "изменено" и удалённое сообщение */
+    .editedMark { font-size: 10px; opacity: .6; font-style: italic; margin-left: 4px; }
+    .deletedMsg { font-style: italic; opacity: .65; }
+
+    /* редактирование сообщения на месте */
+    .editArea {
+      width: 100%; min-width: 220px; border: 1px solid var(--input-border); border-radius: 8px;
+      padding: 6px 8px; font-size: 14px; font-family: inherit; resize: vertical; min-height: 38px;
+      background: var(--input-bg); color: var(--text); outline: none;
+    }
+    .editBtns { display: flex; gap: 6px; margin-top: 5px; }
+    .editBtns button { border: none; border-radius: 8px; padding: 4px 12px; font-size: 12px; cursor: pointer; }
+    .editSave { background: var(--accent); color: #fff; }
+    .editCancel { background: var(--icon-bg); color: var(--text); }
+
+    /* оверлей перетаскивания файла */
+    #dropOverlay {
+      display: none; position: fixed; inset: 0; z-index: 150;
+      background: rgba(79,70,229,.25); border: 4px dashed var(--accent);
+      align-items: center; justify-content: center; flex-direction: column; gap: 12px;
+      color: #fff; font-size: 26px; font-weight: 700; text-shadow: 0 2px 6px rgba(0,0,0,.5);
+    }
+    #dropOverlay.show { display: flex; }
   </style>
 </head>
 <body>
@@ -268,9 +340,18 @@
       </h1>
       <div class="me">{{ user }} · <a href="/logout">выйти</a></div>
     </div>
+    <button class="headbtn" id="searchBtn" title="Поиск по чату">🔍</button>
     <button class="headbtn" id="soundBtn" title="Звук уведомлений">🔔</button>
     <button class="headbtn" id="themeBtn" title="Сменить тему">🌙</button>
   </header>
+
+  <div id="searchBar">
+    <input id="searchInput" placeholder="Поиск по сообщениям…" autocomplete="off">
+    <span class="sCount" id="searchCount"></span>
+    <button class="sNav" id="searchPrev" title="Предыдущее">▲</button>
+    <button class="sNav" id="searchNext" title="Следующее">▼</button>
+    <button class="sNav" id="searchClose" title="Закрыть">✕</button>
+  </div>
 
   <div id="members" class="collapsed"></div>
 
@@ -278,6 +359,8 @@
     <div id="messages"></div>
     <button id="scrollDown" title="Вниз">⬇<span class="badge" id="scrollBadge"></span></button>
   </div>
+
+  <div id="emojiPicker"></div>
 
   <div id="typing"></div>
 
@@ -293,7 +376,14 @@
     <span id="uploadPct">0%</span>
   </div>
 
-  <div class="hint">Файлы хранятся 24 ч · Enter — отправить · @имя — упомянуть · /w имя текст — личное сообщение</div>
+  <div id="replyBar">
+    <div class="rb-info"><span class="rb-who" id="rbWho"></span><div class="rb-text" id="rbText"></div></div>
+    <span class="rb-close" id="rbClose">✕</span>
+  </div>
+
+  <div id="attachBar"></div>
+
+  <div class="hint">Перетащите файл сюда · 📎 — прикрепить · @имя — упомянуть · /w имя текст — лично · наведите на сообщение для ответа/реакции</div>
 
   <div id="mentionBox"></div>
 
@@ -303,8 +393,10 @@
     <button type="submit" class="iconbtn sendbtn">➤</button>
   </form>
 
-  <input type="file" id="fileInput" style="display:none">
+  <input type="file" id="fileInput" multiple style="display:none">
   <input type="file" id="avatarInput" accept="image/*" style="display:none">
+
+  <div id="dropOverlay">📎 Отпустите, чтобы прикрепить файлы</div>
 
   <script>
   const me = {{ user|tojson }};
@@ -314,11 +406,16 @@
   let lastId = 0;
   let avatars = {};
   let presence = {};
-  let usersList = [];           // [{username, online}] для автодополнения @
+  let usersList = [];
   const shownIds = new Set();
+  const msgById = {};            // id -> {username, text, kind, ...} для цитат
   let polling = false;
-  let unread = 0;                 // непрочитанные (когда вкладка не активна / прокручен вверх)
-  let lastDateLabel = "";         // последний показанный разделитель даты
+  let unread = 0;
+  let lastDateLabel = "";
+  let replyTo = null;            // id сообщения, на которое отвечаем
+  let pendingAttachments = [];   // [{fileId,name,size,isImage}] прикреплённые файлы
+
+  const REACTION_EMOJIS = ["👍","❤️","😂","😮","😢","🔥","🎉","👎"];
 
   const defaultAva =
     "data:image/svg+xml," + encodeURIComponent(
@@ -332,7 +429,6 @@
   function fmtSize(b){ if(b<1024)return b+" Б"; if(b<1048576)return (b/1024).toFixed(1)+" КБ"; return (b/1048576).toFixed(1)+" МБ"; }
   function escapeHtml(s){ const d=document.createElement("div"); d.textContent=s; return d.innerHTML; }
 
-  // дата для разделителя: Сегодня / Вчера / дата
   function dateLabel(iso){
     const d = new Date(iso);
     const today = new Date(); const yest = new Date(); yest.setDate(today.getDate()-1);
@@ -342,18 +438,25 @@
     return d.toLocaleDateString([], {day:"numeric", month:"long", year:"numeric"});
   }
 
-  // текст -> ссылки + @упоминания
   function linkify(text){
     let esc = escapeHtml(text);
     esc = esc.replace(/(https?:\/\/[^\s<]+)/g, '<a href="$1" target="_blank" rel="noopener">$1</a>');
-    // @никнейм (буквы/цифры/._-)
     esc = esc.replace(/@([A-Za-z0-9_.\-а-яёА-ЯЁ]+)/g, '<span class="mention">@$1</span>');
     return esc;
   }
-  // упомянут ли я в тексте
   function mentionsMe(text){
     const re = new RegExp("@" + me.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "\\b", "i");
     return re.test(text || "");
+  }
+
+  // короткое описание сообщения для цитаты/превью
+  function previewOf(m){
+    if(!m) return "сообщение";
+    if(m.attachments && m.attachments.length){
+      const a = m.attachments[0];
+      return (m.text ? m.text + " " : "") + "📎 " + a.name;
+    }
+    return m.text || "сообщение";
   }
 
   // ===================================================== ТЕМА
@@ -392,7 +495,6 @@
       o.start(); o.stop(ctx.currentTime + 0.26);
     }catch(e){}
   }
-  // двойной сигнал, когда упомянули лично/через @
   function pingSound(){
     if(!soundOn) return;
     try{
@@ -409,25 +511,16 @@
       });
     }catch(e){}
   }
-  // системное уведомление, когда вкладка не активна
   function notifyDesktop(){
     if(document.visibilityState === "visible") return;
-    try{
-      if(window.Notification && Notification.permission === "granted"){
-        new Notification("💬 Вас упомянули в чате");
-      }
-    }catch(e){}
+    try{ if(window.Notification && Notification.permission === "granted") new Notification("💬 Вас упомянули в чате"); }catch(e){}
   }
-  // спросить разрешение на уведомления (после первого клика)
   document.addEventListener("click", function askNotif(){
     try{ if(window.Notification && Notification.permission === "default"){ Notification.requestPermission(); } }catch(e){}
     document.removeEventListener("click", askNotif);
   });
 
-  // ===================================================== заголовок вкладки
-  function updateTitle(){
-    document.title = unread > 0 ? `(${unread}) 💬 Общий чат` : "💬 Общий чат";
-  }
+  function updateTitle(){ document.title = unread > 0 ? `(${unread}) 💬 Общий чат` : "💬 Общий чат"; }
 
   // ===================================================== аватарки
   document.getElementById("myAvatar").onclick = () => document.getElementById("avatarInput").click();
@@ -443,10 +536,7 @@
         const s = Math.min(img.width, img.height);
         ctx.drawImage(img, (img.width-s)/2, (img.height-s)/2, s, s, 0, 0, size, size);
         const dataUrl = c.toDataURL("image/jpeg", 0.8);
-        await fetch("/api/avatar", {
-          method:"POST", headers:{"Content-Type":"application/json"},
-          body: JSON.stringify({ avatar: dataUrl })
-        });
+        await fetch("/api/avatar", { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({ avatar: dataUrl }) });
         avatars[me] = dataUrl;
         document.getElementById("myAvatar").src = dataUrl;
         rerenderAvatars();
@@ -463,9 +553,7 @@
     }catch(e){}
   }
   function rerenderAvatars(){
-    document.querySelectorAll("[data-ava-user]").forEach(el=>{
-      el.src = avaFor(el.getAttribute("data-ava-user"));
-    });
+    document.querySelectorAll("[data-ava-user]").forEach(el=>{ el.src = avaFor(el.getAttribute("data-ava-user")); });
   }
 
   // ===================================================== онлайн-статус + участники
@@ -487,11 +575,9 @@
       rerenderAvatars();
     }catch(e){}
   }
-
   function renderMembers(users){
     const cont = document.getElementById("members");
     cont.innerHTML = "";
-    // счётчик "онлайн/всего" на кнопке
     const onlineCount = users.filter(u => u.username === me ? true : u.online).length;
     document.getElementById("memCount").textContent = onlineCount + "/" + users.length;
     users.sort((a,b)=> (b.online?1:0)-(a.online?1:0) || a.username.localeCompare(b.username));
@@ -500,10 +586,7 @@
       const m = document.createElement("div");
       m.className = "member";
       m.innerHTML = `
-        <div class="avawrap">
-          <img class="ava">
-          <span class="dot ${online ? "online" : ""}"></span>
-        </div>
+        <div class="avawrap"><img class="ava"><span class="dot ${online ? "online" : ""}"></span></div>
         <div class="mname"></div>
         <div class="mstat ${online ? "on" : "off"}">${online ? "в сети" : "не в сети"}</div>`;
       m.querySelector(".ava").src = avaFor(u.username);
@@ -511,8 +594,6 @@
       cont.appendChild(m);
     });
   }
-
-  // ===================================================== сворачивание панели участников
   document.getElementById("memToggle").onclick = ()=>{
     const cont = document.getElementById("members");
     const collapsed = cont.classList.toggle("collapsed");
@@ -523,10 +604,7 @@
   let typingTimer = 0;
   function notifyTyping(){
     const now = Date.now();
-    if(now - typingTimer > 2500){
-      typingTimer = now;
-      fetch("/api/typing", {method:"POST"}).catch(()=>{});
-    }
+    if(now - typingTimer > 2500){ typingTimer = now; fetch("/api/typing", {method:"POST"}).catch(()=>{}); }
   }
   async function loadTyping(){
     try{
@@ -549,7 +627,7 @@
   }
   document.getElementById("lightboxClose").onclick = ()=> document.getElementById("lightbox").style.display = "none";
   document.getElementById("lightbox").onclick = (e)=>{ if(e.target.id === "lightbox") e.target.style.display = "none"; };
-  document.addEventListener("keydown", (e)=>{ if(e.key === "Escape") document.getElementById("lightbox").style.display = "none"; });
+  document.addEventListener("keydown", (e)=>{ if(e.key === "Escape"){ document.getElementById("lightbox").style.display = "none"; closeEmoji(); } });
 
   // ===================================================== пульс
   async function heartbeat(){ try{ await fetch("/api/heartbeat", {method:"POST"}); }catch(e){} }
@@ -571,19 +649,86 @@
   async function reportRead(){
     if(lastId > lastReportedRead){
       lastReportedRead = lastId;
-      try{
-        await fetch("/api/read", {method:"POST", headers:{"Content-Type":"application/json"},
-          body: JSON.stringify({ last_id: lastId })});
-      }catch(e){}
+      try{ await fetch("/api/read", {method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({ last_id: lastId })}); }catch(e){}
     }
+  }
+
+  // ===================================================== реакции
+  async function loadReactions(){
+    try{
+      const r = await fetch("/api/reactions");
+      if(!r.ok) return;
+      const all = await r.json();
+      document.querySelectorAll("[data-react-box]").forEach(boxEl=>{
+        const mid = boxEl.getAttribute("data-react-box");
+        renderReactions(boxEl, all[mid] || {});
+      });
+    }catch(e){}
+  }
+  function renderReactions(boxEl, data){
+    boxEl.innerHTML = "";
+    Object.keys(data).forEach(emoji=>{
+      const users = data[emoji];
+      if(!users.length) return;
+      const chip = document.createElement("div");
+      chip.className = "reaction" + (users.includes(me) ? " mine-react" : "");
+      chip.title = users.join(", ");
+      chip.innerHTML = `<span>${emoji}</span><span class="cnt">${users.length}</span>`;
+      chip.onclick = ()=> toggleReaction(boxEl.getAttribute("data-react-box"), emoji);
+      boxEl.appendChild(chip);
+    });
+  }
+  async function toggleReaction(mid, emoji){
+    try{
+      await fetch("/api/react", {method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({ message_id: parseInt(mid), emoji })});
+      loadReactions();
+    }catch(e){}
+  }
+
+  // выбор эмодзи
+  const emojiPicker = document.getElementById("emojiPicker");
+  REACTION_EMOJIS.forEach(em=>{
+    const b = document.createElement("button"); b.textContent = em;
+    b.onclick = ()=>{ if(emojiPicker._mid){ toggleReaction(emojiPicker._mid, em); } closeEmoji(); };
+    emojiPicker.appendChild(b);
+  });
+  function openEmoji(mid, anchor){
+    emojiPicker._mid = mid;
+    const rect = anchor.getBoundingClientRect();
+    emojiPicker.classList.add("open");
+    const pw = emojiPicker.offsetWidth, ph = emojiPicker.offsetHeight;
+    let left = rect.left; let top = rect.top - ph - 6;
+    if(left + pw > window.innerWidth - 8) left = window.innerWidth - pw - 8;
+    if(top < 8) top = rect.bottom + 6;
+    emojiPicker.style.left = Math.max(8,left) + "px";
+    emojiPicker.style.top = top + "px";
+  }
+  function closeEmoji(){ emojiPicker.classList.remove("open"); emojiPicker._mid = null; }
+  document.addEventListener("click", (e)=>{ if(!emojiPicker.contains(e.target) && !e.target.classList.contains("react-open")) closeEmoji(); });
+
+  // ===================================================== ответы
+  function setReply(mid){
+    const m = msgById[mid]; if(!m) return;
+    replyTo = mid;
+    document.getElementById("rbWho").textContent = m.username;
+    document.getElementById("rbText").textContent = previewOf(m);
+    document.getElementById("replyBar").style.display = "flex";
+    input.focus();
+  }
+  function cancelReply(){ replyTo = null; document.getElementById("replyBar").style.display = "none"; }
+  document.getElementById("rbClose").onclick = cancelReply;
+
+  function scrollToMessage(mid){
+    const el = document.querySelector(`.row[data-msg-id="${mid}"]`);
+    if(el){ el.scrollIntoView({behavior:"smooth", block:"center"}); el.classList.remove("flash"); void el.offsetWidth; el.classList.add("flash"); }
   }
 
   // ===================================================== сообщения
   function addMessage(m){
     if(shownIds.has(m.id)) return;
     shownIds.add(m.id);
+    msgById[m.id] = m;
 
-    // разделитель даты
     const lbl = dateLabel(m.created);
     if(lbl !== lastDateLabel){
       lastDateLabel = lbl;
@@ -596,8 +741,8 @@
     const isPrivate = !!m.recipient;
     const row = document.createElement("div");
     row.className = "row " + (mine ? "mine" : "theirs");
+    row.setAttribute("data-msg-id", m.id);
     if(isPrivate) row.classList.add("pm");
-    // подсветка, если упомянули меня (в общем сообщении)
     if(!mine && !isPrivate && mentionsMe(m.text)) row.classList.add("mention-me");
 
     const avawrap = document.createElement("div");
@@ -613,58 +758,205 @@
     const bubble = document.createElement("div");
     bubble.className = "bubble";
 
-    if(m.kind === "file"){
-      let meta; try{ meta = JSON.parse(m.text); }catch(e){ meta = null; }
-      bubble.innerHTML = `<div class="who"></div>`;
-      bubble.querySelector(".who").textContent = m.username;
-      if(meta && meta.isImage){
-        const img = document.createElement("img");
-        img.className = "imgprev";
-        img.src = "/api/image/" + meta.fileId;
-        img.alt = meta.name;
-        img.onclick = ()=> openLightbox("/api/image/" + meta.fileId, "/api/file/" + meta.fileId, meta.name);
-        bubble.appendChild(img);
-        const cap = document.createElement("div");
-        cap.className = "imgcap";
-        cap.textContent = meta.name + " · " + fmtSize(meta.size);
-        bubble.appendChild(cap);
-      } else if(meta){
-        const a = document.createElement("a");
-        a.className = "file";
-        a.href = "/api/file/" + meta.fileId;
-        a.setAttribute("download", meta.name);
-        a.innerHTML = `
-          <div class="icon">📄</div>
-          <div class="info">
-            <div class="name"></div>
-            <div class="size"></div>
-            <div class="dl">⬇ Скачать</div>
-          </div>`;
-        a.querySelector(".name").textContent = meta.name;
-        a.querySelector(".size").textContent = fmtSize(meta.size);
-        bubble.appendChild(a);
-      } else {
-        const d = document.createElement("div"); d.textContent = "файл"; bubble.appendChild(d);
-      }
-      const reads = document.createElement("div");
-      reads.className = "reads"; reads.setAttribute("data-reads-id", m.id);
-      bubble.appendChild(reads);
-    } else {
-      bubble.innerHTML = `<div class="who"></div><div class="pmline"></div><div class="txt"></div><div class="time">${fmtTime(m.created)}</div><div class="reads" data-reads-id="${m.id}"></div>`;
-      bubble.querySelector(".who").textContent = m.username;
-      // плашка личного сообщения
-      if(isPrivate){
-        const tag = document.createElement("span");
-        tag.className = "pmtag";
-        tag.textContent = mine ? ("🔒 лично → " + m.recipient) : "🔒 лично вам";
-        bubble.querySelector(".pmline").appendChild(tag);
-      }
-      bubble.querySelector(".txt").innerHTML = linkify(m.text);
+    // цитата ответа
+    if(m.reply_to){
+      const q = document.createElement("div");
+      q.className = "reply-quote";
+      const ref = msgById[m.reply_to];
+      q.innerHTML = `<span class="rq-who"></span><span class="rq-text"></span>`;
+      q.querySelector(".rq-who").textContent = ref ? ref.username : "сообщение";
+      q.querySelector(".rq-text").textContent = ref ? previewOf(ref) : "(недоступно)";
+      q.onclick = ()=> scrollToMessage(m.reply_to);
+      bubble.appendChild(q);
     }
 
-    row.appendChild(avawrap); row.appendChild(bubble);
+    const who = document.createElement("div");
+    who.className = "who"; who.textContent = m.username;
+    bubble.appendChild(who);
+
+    if(isPrivate){
+      const tag = document.createElement("span");
+      tag.className = "pmtag";
+      tag.textContent = mine ? ("🔒 лично → " + m.recipient) : "🔒 лично вам";
+      bubble.appendChild(tag);
+    }
+
+    if(m.deleted){
+      const txt = document.createElement("div");
+      txt.className = "txt deletedMsg"; txt.textContent = "🚫 сообщение удалено";
+      bubble.appendChild(txt);
+    } else if(m.text){
+      const txt = document.createElement("div");
+      txt.className = "txt"; txt.setAttribute("data-text-id", m.id);
+      txt.innerHTML = linkify(m.text);
+      if(m.edited){
+        const em = document.createElement("span");
+        em.className = "editedMark"; em.textContent = "(изменено)";
+        txt.appendChild(document.createTextNode(" "));
+        txt.appendChild(em);
+      }
+      bubble.appendChild(txt);
+    }
+
+    // вложения (у удалённых не показываем)
+    (m.deleted ? [] : (m.attachments || [])).forEach(a=>{
+      if(a.isImage){
+        const img = document.createElement("img");
+        img.className = "imgprev"; img.src = "/api/image/" + a.fileId; img.alt = a.name;
+        img.onclick = ()=> openLightbox("/api/image/" + a.fileId, "/api/file/" + a.fileId, a.name);
+        bubble.appendChild(img);
+        const cap = document.createElement("div");
+        cap.className = "imgcap"; cap.textContent = a.name + " · " + fmtSize(a.size);
+        bubble.appendChild(cap);
+      } else {
+        const link = document.createElement("a");
+        link.className = "file"; link.href = "/api/file/" + a.fileId; link.setAttribute("download", a.name);
+        link.innerHTML = `<div class="icon">📄</div><div class="info"><div class="name"></div><div class="size"></div><div class="dl">⬇ Скачать</div></div>`;
+        link.querySelector(".name").textContent = a.name;
+        link.querySelector(".size").textContent = fmtSize(a.size);
+        bubble.appendChild(link);
+      }
+    });
+
+    const time = document.createElement("div");
+    time.className = "time"; time.textContent = fmtTime(m.created);
+    bubble.appendChild(time);
+
+    const reactBox = document.createElement("div");
+    reactBox.className = "reactions"; reactBox.setAttribute("data-react-box", m.id);
+    bubble.appendChild(reactBox);
+
+    const reads = document.createElement("div");
+    reads.className = "reads"; reads.setAttribute("data-reads-id", m.id);
+    bubble.appendChild(reads);
+
+    // кнопки действий (ответить / реакция)
+    const actions = document.createElement("div");
+    actions.className = "msgActions";
+    const replyBtn = document.createElement("button");
+    replyBtn.className = "actBtn"; replyBtn.title = "Ответить"; replyBtn.textContent = "↩";
+    replyBtn.onclick = ()=> setReply(m.id);
+    const reactBtn = document.createElement("button");
+    reactBtn.className = "actBtn react-open"; reactBtn.title = "Реакция"; reactBtn.textContent = "😊";
+    reactBtn.onclick = (e)=>{ e.stopPropagation(); openEmoji(String(m.id), reactBtn); };
+    actions.appendChild(replyBtn); actions.appendChild(reactBtn);
+
+    // редактирование/удаление — только для своих текстовых, не удалённых
+    if(mine && !m.deleted){
+      if(m.text){
+        const editBtn = document.createElement("button");
+        editBtn.className = "actBtn"; editBtn.title = "Редактировать"; editBtn.textContent = "✏️";
+        editBtn.onclick = ()=> startEdit(m.id, bubble);
+        actions.appendChild(editBtn);
+      }
+      const delBtn = document.createElement("button");
+      delBtn.className = "actBtn"; delBtn.title = "Удалить"; delBtn.textContent = "🗑";
+      delBtn.onclick = ()=> deleteMessage(m.id);
+      actions.appendChild(delBtn);
+    }
+
+    if(m.deleted) row.classList.add("is-deleted");
+    row.appendChild(avawrap); row.appendChild(bubble); row.appendChild(actions);
     box.appendChild(row);
     lastId = Math.max(lastId, m.id);
+  }
+
+  // ===================================================== редактирование / удаление
+  function startEdit(mid, bubble){
+    const m = msgById[mid]; if(!m) return;
+    const txtEl = bubble.querySelector(".txt");
+    if(!txtEl || bubble.querySelector(".editArea")) return;
+    txtEl.style.display = "none";
+
+    const ta = document.createElement("textarea");
+    ta.className = "editArea"; ta.value = m.text;
+    const btns = document.createElement("div");
+    btns.className = "editBtns";
+    btns.innerHTML = `<button class="editSave">Сохранить</button><button class="editCancel">Отмена</button>`;
+    bubble.insertBefore(ta, txtEl.nextSibling);
+    bubble.insertBefore(btns, ta.nextSibling);
+    ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length);
+
+    function cleanup(){ ta.remove(); btns.remove(); txtEl.style.display = ""; }
+    btns.querySelector(".editCancel").onclick = cleanup;
+    btns.querySelector(".editSave").onclick = ()=> saveEdit(mid, ta.value, cleanup);
+    ta.addEventListener("keydown", (e)=>{
+      if(e.key === "Enter" && !e.shiftKey){ e.preventDefault(); saveEdit(mid, ta.value, cleanup); }
+      if(e.key === "Escape"){ cleanup(); }
+    });
+  }
+
+  async function saveEdit(mid, newText, cleanup){
+    newText = newText.trim();
+    if(!newText){ showToast("Текст не может быть пустым"); return; }
+    if(newText === msgById[mid].text){ cleanup(); return; }
+    try{
+      const r = await fetch("/api/edit", {method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({ id: mid, text: newText })});
+      if(!r.ok){ const e = await r.json().catch(()=>({})); showToast(e.error || "Не удалось изменить"); return; }
+      // локально обновим сразу
+      msgById[mid].text = newText; msgById[mid].edited = 1;
+      applyTextUpdate(mid, newText, true, false);
+      cleanup();
+    }catch(e){ showToast("Ошибка сети"); }
+  }
+
+  async function deleteMessage(mid){
+    if(!confirm("Удалить это сообщение?")) return;
+    try{
+      const r = await fetch("/api/delete", {method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({ id: mid })});
+      if(!r.ok){ const e = await r.json().catch(()=>({})); showToast(e.error || "Не удалось удалить"); return; }
+      msgById[mid].deleted = 1; msgById[mid].text = "";
+      applyTextUpdate(mid, "", false, true);
+    }catch(e){ showToast("Ошибка сети"); }
+  }
+
+  // применить изменение текста/удаления к уже отрисованному сообщению
+  function applyTextUpdate(mid, text, edited, deleted){
+    const row = document.querySelector(`.row[data-msg-id="${mid}"]`);
+    if(!row) return;
+    const bubble = row.querySelector(".bubble");
+    const txtEl = bubble.querySelector(".txt");
+    if(deleted){
+      row.classList.add("is-deleted");
+      // убираем вложения/реакции/кнопки редактирования
+      bubble.querySelectorAll(".imgprev,.imgcap,.file").forEach(el=>el.remove());
+      const rbox = bubble.querySelector(".reactions"); if(rbox) rbox.innerHTML = "";
+      row.querySelectorAll(".msgActions .actBtn").forEach((b)=>{
+        if(b.title === "Редактировать" || b.title === "Удалить") b.remove();
+      });
+      if(txtEl){ txtEl.className = "txt deletedMsg"; txtEl.textContent = "🚫 сообщение удалено"; }
+      else {
+        const d = document.createElement("div"); d.className = "txt deletedMsg"; d.textContent = "🚫 сообщение удалено";
+        bubble.insertBefore(d, bubble.querySelector(".time"));
+      }
+      return;
+    }
+    if(txtEl){
+      txtEl.innerHTML = linkify(text);
+      if(edited){ const em = document.createElement("span"); em.className = "editedMark"; em.textContent = "(изменено)"; txtEl.appendChild(document.createTextNode(" ")); txtEl.appendChild(em); }
+    }
+  }
+
+  // синхронизация правок/удалений ранее показанных сообщений
+  async function syncChanges(){
+    const ids = Object.keys(msgById);
+    if(!ids.length) return;
+    try{
+      const r = await fetch("/api/changes?ids=" + ids.join(","));
+      if(!r.ok) return;
+      const list = await r.json();
+      list.forEach(ch=>{
+        const local = msgById[ch.id];
+        if(!local) return;
+        if(ch.deleted && !local.deleted){
+          local.deleted = 1; local.text = "";
+          applyTextUpdate(ch.id, "", false, true);
+        } else if(!ch.deleted && (ch.text !== local.text || ch.edited !== local.edited)){
+          local.text = ch.text; local.edited = ch.edited;
+          applyTextUpdate(ch.id, ch.text, !!ch.edited, false);
+        }
+      });
+    }catch(e){}
   }
 
   function nearBottom(){ return box.scrollHeight - box.scrollTop - box.clientHeight < 120; }
@@ -684,19 +976,17 @@
           if(m.username === me){ addedMine++; }
           else {
             addedOther++;
-            // меня упомянули (@me) или это личное мне — особый пинг
             if(m.recipient === me || (!m.recipient && mentionsMe(m.text))) pinged = true;
           }
         }
       });
       if(addedMine || (addedOther && wasNear)) box.scrollTop = box.scrollHeight;
-
       if(addedOther){
-        // звук + счётчик, если вкладка не активна или прокручено вверх
         const active = document.visibilityState === "visible" && wasNear;
         if(!active){ unread += addedOther; updateTitle(); showScrollBadge(); }
         if(pinged){ pingSound(); notifyDesktop(); } else { beep(); }
       }
+      if(addedOther || addedMine){ loadReactions(); }
       if(nearBottom() && document.visibilityState === "visible"){ unread = 0; updateTitle(); reportRead(); }
     }catch(e){}
     finally{ polling = false; }
@@ -705,34 +995,46 @@
   // ===================================================== кнопка "вниз"
   const scrollDown = document.getElementById("scrollDown");
   const scrollBadge = document.getElementById("scrollBadge");
-  function showScrollBadge(){
-    if(unread > 0){ scrollBadge.style.display = "flex"; scrollBadge.textContent = unread; }
-  }
+  function showScrollBadge(){ if(unread > 0){ scrollBadge.style.display = "flex"; scrollBadge.textContent = unread; } }
   scrollDown.onclick = ()=>{ box.scrollTop = box.scrollHeight; unread = 0; updateTitle(); scrollBadge.style.display="none"; reportRead(); };
   box.addEventListener("scroll", ()=>{
     scrollDown.style.display = nearBottom() ? "none" : "block";
     if(nearBottom()){ unread = 0; updateTitle(); scrollBadge.style.display="none"; if(document.visibilityState==="visible") reportRead(); }
   });
 
-  // ===================================================== автодополнение @
+  // ===================================================== автодополнение @ и /w
   const mentionBox = document.getElementById("mentionBox");
-  let mentionItems = [];      // текущие варианты
-  let mentionActive = -1;     // выбранный пунк
-  let mentionStart = -1;      // позиция "@" в тексте
+  let mentionItems = [];
+  let mentionActive = -1;
+  let mentionStart = -1;
+  let mentionMode = "";       // "at" или "w"
 
-  function closeMention(){ mentionBox.style.display = "none"; mentionItems = []; mentionActive = -1; mentionStart = -1; }
+  function closeMention(){ mentionBox.style.display = "none"; mentionItems = []; mentionActive = -1; mentionStart = -1; mentionMode=""; }
 
   function updateMention(){
     const pos = input.selectionStart;
     const before = input.value.slice(0, pos);
-    // ищем "@слово" вплотную к курсору (без пробела внутри)
-    const m = before.match(/(^|\s)@([A-Za-z0-9_.\-а-яёА-ЯЁ]*)$/);
-    if(!m){ closeMention(); return; }
-    mentionStart = pos - m[2].length - 1;   // позиция символа "@"
-    const q = m[2].toLowerCase();
-    const cands = usersList
-      .filter(u => u.username !== me && u.username.toLowerCase().startsWith(q))
-      .slice(0, 6);
+    // вариант 1: @слово рядом с курсором
+    let m = before.match(/(^|\s)@([A-Za-z0-9_.\-а-яёА-ЯЁ]*)$/);
+    if(m){
+      mentionMode = "at";
+      mentionStart = pos - m[2].length - 1;
+      showCandidates(m[2].toLowerCase());
+      return;
+    }
+    // вариант 2: команда "/w слово" в самом начале
+    m = before.match(/^\/w\s+([A-Za-z0-9_.\-а-яёА-ЯЁ]*)$/);
+    if(m){
+      mentionMode = "w";
+      mentionStart = pos - m[1].length;
+      showCandidates(m[1].toLowerCase());
+      return;
+    }
+    closeMention();
+  }
+
+  function showCandidates(q){
+    const cands = usersList.filter(u => u.username !== me && u.username.toLowerCase().startsWith(q)).slice(0, 6);
     if(cands.length === 0){ closeMention(); return; }
     mentionItems = cands; mentionActive = 0;
     renderMention();
@@ -740,10 +1042,14 @@
 
   function renderMention(){
     mentionBox.innerHTML = "";
+    const hdr = document.createElement("div");
+    hdr.className = "mhdr";
+    hdr.textContent = mentionMode === "w" ? "Кому отправить личное сообщение:" : "Упомянуть пользователя:";
+    mentionBox.appendChild(hdr);
     mentionItems.forEach((u, i)=>{
       const it = document.createElement("div");
       it.className = "item" + (i === mentionActive ? " active" : "");
-      it.innerHTML = `<img><span class="nm"></span><span class="st ${u.online?"on":"off"}">${u.online?"●":"○"}</span>`;
+      it.innerHTML = `<img><span class="nm"></span><span class="st ${u.online?"on":"off"}">${u.online?"● в сети":"○ не в сети"}</span>`;
       it.querySelector("img").src = avaFor(u.username);
       it.querySelector(".nm").textContent = u.username;
       it.onmousedown = (e)=>{ e.preventDefault(); pickMention(i); };
@@ -757,9 +1063,15 @@
     const pos = input.selectionStart;
     const after = input.value.slice(pos);
     const before = input.value.slice(0, mentionStart);
-    input.value = before + "@" + u.username + " " + after;
-    const newPos = (before + "@" + u.username + " ").length;
-    input.setSelectionRange(newPos, newPos);
+    if(mentionMode === "w"){
+      input.value = before + u.username + " " + after;
+      const np = (before + u.username + " ").length;
+      input.setSelectionRange(np, np);
+    } else {
+      input.value = before + "@" + u.username + " " + after;
+      const np = (before + "@" + u.username + " ").length;
+      input.setSelectionRange(np, np);
+    }
     closeMention(); input.focus(); autoGrow();
   }
 
@@ -767,29 +1079,33 @@
   function autoGrow(){ input.style.height = "auto"; input.style.height = Math.min(input.scrollHeight, 120) + "px"; }
   input.addEventListener("input", ()=>{ autoGrow(); notifyTyping(); updateMention(); });
   input.addEventListener("keydown", (e)=>{
-    // навигация по списку автодополнения
     if(mentionBox.style.display === "block" && mentionItems.length){
       if(e.key === "ArrowDown"){ e.preventDefault(); mentionActive = (mentionActive+1)%mentionItems.length; renderMention(); return; }
       if(e.key === "ArrowUp"){ e.preventDefault(); mentionActive = (mentionActive-1+mentionItems.length)%mentionItems.length; renderMention(); return; }
       if(e.key === "Enter" || e.key === "Tab"){ e.preventDefault(); pickMention(mentionActive); return; }
       if(e.key === "Escape"){ closeMention(); return; }
     }
+    if(e.key === "Escape" && replyTo){ cancelReply(); return; }
     if(e.key === "Enter" && !e.shiftKey){ e.preventDefault(); form.requestSubmit(); }
   });
   input.addEventListener("blur", ()=> setTimeout(closeMention, 150));
 
   form.addEventListener("submit", async (e)=>{
     e.preventDefault();
-    const text = input.value.trim(); if(!text) return;
+    const text = input.value.trim();
+    if(!text && pendingAttachments.length === 0) return;
     closeMention();
+    const payload = { text, reply_to: replyTo, attachments: pendingAttachments.map(a=>a.fileId) };
     input.value = ""; autoGrow();
+    const savedReply = replyTo, savedAtt = pendingAttachments.slice();
+    cancelReply(); clearAttachments();
     try{
-      const r = await fetch("/api/send",{method:"POST",headers:{"Content-Type":"application/json"},
-        body: JSON.stringify({ text })});
+      const r = await fetch("/api/send",{method:"POST",headers:{"Content-Type":"application/json"}, body: JSON.stringify(payload)});
       if(!r.ok){
         const err = await r.json().catch(()=>({}));
-        // вернём текст обратно и покажем ошибку (например, неверная /w команда)
         input.value = text; autoGrow();
+        replyTo = savedReply; pendingAttachments = savedAtt; renderAttachments();
+        if(savedReply) setReply(savedReply);
         showToast(err.error || "Не удалось отправить");
         return;
       }
@@ -797,65 +1113,110 @@
     pollMessages();
   });
 
-  // маленькое всплывающее уведомление об ошибке
   function showToast(msg){
     let t = document.getElementById("toast");
     if(!t){
       t = document.createElement("div"); t.id = "toast";
-      t.style.cssText = "position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:#ef4444;color:#fff;padding:10px 16px;border-radius:10px;font-size:14px;z-index:200;box-shadow:0 2px 10px rgba(0,0,0,.3)";
+      t.style.cssText = "position:fixed;bottom:90px;left:50%;transform:translateX(-50%);background:#ef4444;color:#fff;padding:10px 16px;border-radius:10px;font-size:14px;z-index:200;box-shadow:0 2px 10px rgba(0,0,0,.3)";
       document.body.appendChild(t);
     }
     t.textContent = msg; t.style.display = "block";
     clearTimeout(t._tm); t._tm = setTimeout(()=> t.style.display = "none", 3500);
   }
 
-  // ===================================================== загрузка файла
+  // ===================================================== прикрепление файлов
   const MAX_BYTES = {{ max_mb }} * 1024 * 1024;
   const uploadBar = document.getElementById("uploadBar");
   const uploadFill = document.getElementById("uploadFill");
   const uploadPct = document.getElementById("uploadPct");
   const uploadName = document.getElementById("uploadName");
+  const attachBar = document.getElementById("attachBar");
 
   document.getElementById("fileBtn").onclick = ()=> document.getElementById("fileInput").click();
   document.getElementById("fileInput").onchange = (e)=>{
-    const f = e.target.files[0]; if(!f) return;
+    const files = Array.from(e.target.files || []);
     e.target.value = "";
-    if(f.size > MAX_BYTES){ alert("Файл слишком большой. Максимум {{ max_mb }} МБ."); return; }
-    uploadFile(f);
+    files.forEach(addAttachment);
   };
 
-  function uploadFile(f){
+  function clearAttachments(){ pendingAttachments = []; renderAttachments(); }
+  function renderAttachments(){
+    attachBar.innerHTML = "";
+    if(pendingAttachments.length === 0){ attachBar.style.display = "none"; return; }
+    attachBar.style.display = "flex";
+    pendingAttachments.forEach((a, idx)=>{
+      const chip = document.createElement("div");
+      chip.className = "attchip" + (a.loading ? " loading" : "");
+      if(a.isImage && a.fileId){
+        chip.innerHTML = `<img src="/api/image/${a.fileId}"><span class="an"></span><span class="ax">✕</span>`;
+      } else {
+        chip.innerHTML = `<span>📄</span><span class="an"></span><span class="ax">✕</span>`;
+      }
+      chip.querySelector(".an").textContent = a.loading ? (a.name + " …") : a.name;
+      chip.querySelector(".ax").onclick = ()=>{ pendingAttachments.splice(idx,1); renderAttachments(); };
+      attachBar.appendChild(chip);
+    });
+  }
+
+  function addAttachment(f){
+    if(f.size > MAX_BYTES){ showToast("Файл слишком большой. Максимум {{ max_mb }} МБ: " + f.name); return; }
+    // временный объект, пока грузится
+    const temp = { name: f.name, size: f.size, isImage: (f.type||"").startsWith("image/"), loading: true };
+    pendingAttachments.push(temp);
+    renderAttachments();
+
     uploadBar.style.display = "flex";
-    uploadName.textContent = "Отправка: " + f.name;
+    uploadName.textContent = "Загрузка: " + f.name;
     uploadFill.style.width = "0%"; uploadPct.textContent = "0%";
     const fd = new FormData(); fd.append("file", f);
     const xhr = new XMLHttpRequest();
     xhr.open("POST", "/api/upload");
     xhr.upload.onprogress = (ev)=>{
-      if(ev.lengthComputable){
-        const p = Math.round(ev.loaded / ev.total * 100);
-        uploadFill.style.width = p + "%"; uploadPct.textContent = p + "%";
-      }
+      if(ev.lengthComputable){ const p = Math.round(ev.loaded/ev.total*100); uploadFill.style.width = p+"%"; uploadPct.textContent = p+"%"; }
     };
     xhr.onload = ()=>{
       uploadBar.style.display = "none";
-      if(xhr.status === 200){ box.scrollTop = box.scrollHeight; pollMessages(); }
-      else if(xhr.status === 413){ alert("Файл слишком большой. Максимум {{ max_mb }} МБ."); }
-      else { alert("Не удалось отправить файл."); }
+      if(xhr.status === 200){
+        try{
+          const res = JSON.parse(xhr.responseText);
+          temp.fileId = res.fileId; temp.name = res.name; temp.size = res.size; temp.isImage = res.isImage; temp.loading = false;
+          renderAttachments();
+        }catch(e){ removeTemp(temp); showToast("Ошибка загрузки"); }
+      } else if(xhr.status === 413){ removeTemp(temp); showToast("Файл слишком большой"); }
+      else { removeTemp(temp); showToast("Не удалось загрузить файл"); }
     };
-    xhr.onerror = ()=>{ uploadBar.style.display = "none"; alert("Ошибка сети при отправке файла."); };
+    xhr.onerror = ()=>{ uploadBar.style.display = "none"; removeTemp(temp); showToast("Ошибка сети при загрузке"); };
     xhr.send(fd);
   }
+  function removeTemp(temp){ const i = pendingAttachments.indexOf(temp); if(i>=0) pendingAttachments.splice(i,1); renderAttachments(); }
 
-  // вставка картинки из буфера обмена (Ctrl+V)
+  // вставка картинки из буфера (Ctrl+V) -> как вложение
   document.addEventListener("paste", (e)=>{
     const items = (e.clipboardData || {}).items || [];
     for(const it of items){
       if(it.type && it.type.startsWith("image/")){
         const f = it.getAsFile();
-        if(f && f.size <= MAX_BYTES){ uploadFile(f); e.preventDefault(); return; }
+        if(f){ addAttachment(f); e.preventDefault(); return; }
       }
     }
+  });
+
+  // ===================================================== перетаскивание файлов
+  const dropOverlay = document.getElementById("dropOverlay");
+  let dragDepth = 0;
+  window.addEventListener("dragenter", (e)=>{
+    if(e.dataTransfer && Array.from(e.dataTransfer.types||[]).includes("Files")){
+      e.preventDefault(); dragDepth++; dropOverlay.classList.add("show");
+    }
+  });
+  window.addEventListener("dragover", (e)=>{ if(dropOverlay.classList.contains("show")) e.preventDefault(); });
+  window.addEventListener("dragleave", (e)=>{ dragDepth--; if(dragDepth <= 0){ dragDepth = 0; dropOverlay.classList.remove("show"); } });
+  window.addEventListener("drop", (e)=>{
+    if(e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length){
+      e.preventDefault();
+      Array.from(e.dataTransfer.files).forEach(addAttachment);
+    }
+    dragDepth = 0; dropOverlay.classList.remove("show");
   });
 
   document.addEventListener("visibilitychange", ()=>{
@@ -863,17 +1224,99 @@
   });
   window.addEventListener("focus", ()=>{ unread = 0; updateTitle(); reportRead(); });
 
+  // ===================================================== поиск по чату
+  const searchBar = document.getElementById("searchBar");
+  const searchInput = document.getElementById("searchInput");
+  const searchCount = document.getElementById("searchCount");
+  let searchHits = [];      // массив row-элементов с совпадениями
+  let searchIdx = -1;
+
+  function clearSearchHighlights(){
+    document.querySelectorAll(".row.search-hit").forEach(row=>{
+      row.classList.remove("search-hit", "search-current");
+      const t = row.querySelector(".txt");
+      if(t && t.getAttribute("data-text-id")){
+        const m = msgById[t.getAttribute("data-text-id")];
+        if(m){ t.innerHTML = linkify(m.text); if(m.edited){ const em=document.createElement("span"); em.className="editedMark"; em.textContent="(изменено)"; t.appendChild(document.createTextNode(" ")); t.appendChild(em);} }
+      }
+    });
+  }
+
+  function runSearch(){
+    clearSearchHighlights();
+    searchHits = []; searchIdx = -1;
+    const q = searchInput.value.trim().toLowerCase();
+    if(!q){ searchCount.textContent = ""; return; }
+    document.querySelectorAll(".row[data-msg-id]").forEach(row=>{
+      const mid = row.getAttribute("data-msg-id");
+      const m = msgById[mid];
+      if(!m || m.deleted || !m.text) return;
+      if(m.text.toLowerCase().includes(q)){
+        row.classList.add("search-hit");
+        const t = row.querySelector(".txt");
+        if(t){
+          // подсветка вхождений (по тексту, безопасно)
+          const esc = escapeHtml(m.text);
+          const re = new RegExp("(" + q.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + ")", "gi");
+          let html = esc.replace(re, "<mark>$1</mark>");
+          html = html.replace(/(https?:\/\/[^\s<]+)/g, '<a href="$1" target="_blank" rel="noopener">$1</a>');
+          html = html.replace(/@([A-Za-z0-9_.\-а-яёА-ЯЁ]+)/g, '<span class="mention">@$1</span>');
+          t.innerHTML = html;
+          if(m.edited){ const em=document.createElement("span"); em.className="editedMark"; em.textContent="(изменено)"; t.appendChild(document.createTextNode(" ")); t.appendChild(em); }
+        }
+        searchHits.push(row);
+      }
+    });
+    if(searchHits.length){ searchIdx = searchHits.length - 1; focusHit(); }
+    updateSearchCount();
+  }
+
+  function updateSearchCount(){
+    searchCount.textContent = searchHits.length ? (searchIdx+1) + "/" + searchHits.length : "0";
+  }
+  function focusHit(){
+    searchHits.forEach(r=> r.classList.remove("search-current"));
+    const row = searchHits[searchIdx];
+    if(row){ row.classList.add("search-current"); row.scrollIntoView({behavior:"smooth", block:"center"}); }
+    updateSearchCount();
+  }
+  function nextHit(d){
+    if(!searchHits.length) return;
+    searchIdx = (searchIdx + d + searchHits.length) % searchHits.length;
+    focusHit();
+  }
+  function openSearch(){ searchBar.classList.add("show"); searchInput.focus(); searchInput.select(); }
+  function closeSearch(){ searchBar.classList.remove("show"); clearSearchHighlights(); searchHits=[]; searchIdx=-1; searchInput.value=""; searchCount.textContent=""; }
+
+  document.getElementById("searchBtn").onclick = ()=> searchBar.classList.contains("show") ? closeSearch() : openSearch();
+  document.getElementById("searchClose").onclick = closeSearch;
+  document.getElementById("searchPrev").onclick = ()=> nextHit(-1);
+  document.getElementById("searchNext").onclick = ()=> nextHit(1);
+  let searchTm = 0;
+  searchInput.addEventListener("input", ()=>{ clearTimeout(searchTm); searchTm = setTimeout(runSearch, 200); });
+  searchInput.addEventListener("keydown", (e)=>{
+    if(e.key === "Enter"){ e.preventDefault(); nextHit(e.shiftKey ? -1 : 1); }
+    if(e.key === "Escape"){ closeSearch(); }
+  });
+  // Ctrl/Cmd+F открывает поиск
+  document.addEventListener("keydown", (e)=>{
+    if((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "f"){ e.preventDefault(); openSearch(); }
+  });
+
   // ===================================================== старт
   heartbeat();
   loadAvatars();
   loadPresence();
   pollMessages();
+  loadReactions();
   setInterval(pollMessages, 2000);
   setInterval(heartbeat, 10000);
   setInterval(loadPresence, 6000);
   setInterval(loadReads, 4000);
   setInterval(reportRead, 5000);
   setInterval(loadTyping, 2000);
+  setInterval(loadReactions, 4000);
+  setInterval(syncChanges, 4000);
   </script>
 </body>
 </html>

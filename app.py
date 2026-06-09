@@ -11,6 +11,7 @@
 import os
 import uuid
 import json
+import hashlib
 from datetime import datetime, timezone, timedelta
 
 from flask import (
@@ -113,7 +114,8 @@ def init_db():
         files_sql = """
             CREATE TABLE IF NOT EXISTS files (
                 id TEXT PRIMARY KEY, name TEXT NOT NULL, size INTEGER NOT NULL,
-                path TEXT NOT NULL, owner TEXT NOT NULL, created TEXT NOT NULL)"""
+                path TEXT NOT NULL, owner TEXT NOT NULL, created TEXT NOT NULL,
+                hash TEXT)"""
     else:
         users_sql = """
             CREATE TABLE IF NOT EXISTS users (
@@ -127,7 +129,8 @@ def init_db():
         files_sql = """
             CREATE TABLE IF NOT EXISTS files (
                 id TEXT PRIMARY KEY, name TEXT NOT NULL, size INTEGER NOT NULL,
-                path TEXT NOT NULL, owner TEXT NOT NULL, created TEXT NOT NULL)"""
+                path TEXT NOT NULL, owner TEXT NOT NULL, created TEXT NOT NULL,
+                hash TEXT)"""
     db = get_db()
     cur = db.cursor()
     cur.execute(users_sql)
@@ -139,12 +142,24 @@ def init_db():
             username TEXT PRIMARY KEY,
             last_read_id INTEGER DEFAULT 0
         )""")
+    # реакции эмодзи: одна строка = (сообщение, пользователь, эмодзи)
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS reactions (
+            message_id INTEGER NOT NULL,
+            username TEXT NOT NULL,
+            emoji TEXT NOT NULL
+        )""")
     db.commit()
     cur.close()
     safe_alter("ALTER TABLE users ADD COLUMN avatar TEXT")
     safe_alter("ALTER TABLE messages ADD COLUMN kind TEXT DEFAULT 'text'")
     safe_alter("ALTER TABLE users ADD COLUMN last_seen TEXT")
     safe_alter("ALTER TABLE messages ADD COLUMN recipient TEXT")
+    safe_alter("ALTER TABLE messages ADD COLUMN reply_to INTEGER")
+    safe_alter("ALTER TABLE messages ADD COLUMN attachments TEXT")
+    safe_alter("ALTER TABLE files ADD COLUMN hash TEXT")
+    safe_alter("ALTER TABLE messages ADD COLUMN edited INTEGER DEFAULT 0")
+    safe_alter("ALTER TABLE messages ADD COLUMN deleted INTEGER DEFAULT 0")
 
 
 def cleanup_old():
@@ -166,6 +181,44 @@ def cleanup_old():
             pass
     if old:
         query(f"DELETE FROM files WHERE created < {PLACEHOLDER}", (fcut,), commit=True)
+    # заодно убираем дубликаты файлов
+    dedup_files()
+
+
+def _hash_file(path):
+    """SHA-256 содержимого файла."""
+    h = hashlib.sha256()
+    try:
+        with open(path, "rb") as fp:
+            for chunk in iter(lambda: fp.read(65536), b""):
+                h.update(chunk)
+        return h.hexdigest()
+    except Exception:
+        return None
+
+
+def dedup_files():
+    """Удаляет дубликаты файлов (одинаковый hash), оставляя самый новый.
+    Чистит и записи в БД, и сами файлы на диске."""
+    rows = query(
+        "SELECT id, path, hash, created FROM files WHERE hash IS NOT NULL "
+        "ORDER BY created DESC", fetch=True,
+    )
+    seen = set()
+    to_delete = []
+    for r in (rows or []):
+        h = r["hash"]
+        if h in seen:
+            to_delete.append(r)          # это более старый дубликат
+        else:
+            seen.add(h)                  # самый новый — оставляем
+    for r in to_delete:
+        try:
+            if r["path"] and os.path.exists(r["path"]):
+                os.remove(r["path"])
+        except Exception:
+            pass
+        query(f"DELETE FROM files WHERE id = {PLACEHOLDER}", (r["id"],), commit=True)
 
 
 # -----------------------------------------------------------------------------
@@ -404,7 +457,8 @@ def get_messages():
     # Показываем: общие сообщения (recipient IS NULL) + личные, где я отправитель
     # или получатель. Чужие личные не отдаём.
     rows = query(
-        f"SELECT id, username, text, kind, created, recipient FROM messages "
+        f"SELECT id, username, text, kind, created, recipient, reply_to, attachments, edited, deleted "
+        f"FROM messages "
         f"WHERE id > {PLACEHOLDER} AND ("
         f"  recipient IS NULL"
         f"  OR username = {PLACEHOLDER}"
@@ -412,7 +466,63 @@ def get_messages():
         f") ORDER BY id ASC LIMIT 200",
         (after, me, me), fetch=True,
     )
+    # парсим attachments из JSON-строки в список
+    for r in rows:
+        if r.get("attachments"):
+            try:
+                r["attachments"] = json.loads(r["attachments"])
+            except Exception:
+                r["attachments"] = []
+        else:
+            r["attachments"] = []
     return jsonify(rows)
+
+
+@app.route("/api/reactions")
+def get_reactions():
+    """Все реакции: {message_id: {emoji: [usernames]}}."""
+    if "user" not in session:
+        return jsonify({"error": "auth"}), 401
+    rows = query("SELECT message_id, username, emoji FROM reactions", fetch=True)
+    result = {}
+    for r in rows:
+        mid = str(r["message_id"])
+        result.setdefault(mid, {}).setdefault(r["emoji"], []).append(r["username"])
+    return jsonify(result)
+
+
+@app.route("/api/react", methods=["POST"])
+def react():
+    """Поставить/снять реакцию (тоггл) на сообщение."""
+    if "user" not in session:
+        return jsonify({"error": "auth"}), 401
+    data = request.json or {}
+    try:
+        mid = int(data.get("message_id"))
+    except Exception:
+        return jsonify({"error": "bad"}), 400
+    emoji = (data.get("emoji") or "")[:8]
+    if not emoji:
+        return jsonify({"error": "bad"}), 400
+    me = session["user"]
+    existing = query(
+        f"SELECT 1 FROM reactions WHERE message_id = {PLACEHOLDER} "
+        f"AND username = {PLACEHOLDER} AND emoji = {PLACEHOLDER}",
+        (mid, me, emoji), fetch=True,
+    )
+    if existing:
+        query(
+            f"DELETE FROM reactions WHERE message_id = {PLACEHOLDER} "
+            f"AND username = {PLACEHOLDER} AND emoji = {PLACEHOLDER}",
+            (mid, me, emoji), commit=True,
+        )
+    else:
+        query(
+            f"INSERT INTO reactions (message_id, username, emoji) "
+            f"VALUES ({PLACEHOLDER}, {PLACEHOLDER}, {PLACEHOLDER})",
+            (mid, me, emoji), commit=True,
+        )
+    return jsonify({"ok": True})
 
 
 @app.route("/api/send", methods=["POST"])
@@ -421,23 +531,45 @@ def send_message():
         return jsonify({"error": "auth"}), 401
     data = request.json or {}
     text = (data.get("text", "") or "").strip()
-    kind = data.get("kind", "text")
-    if kind not in ("text", "file"):
-        kind = "text"
-    if not text:
+    kind = "text"
+    reply_to = data.get("reply_to")
+    try:
+        reply_to = int(reply_to) if reply_to else None
+    except Exception:
+        reply_to = None
+
+    # вложения: список fileId, которые юзер прикрепил
+    attach_ids = data.get("attachments") or []
+    attachments = []
+    if isinstance(attach_ids, list) and attach_ids:
+        for fid in attach_ids[:10]:
+            rows = query(
+                f"SELECT id, name, size FROM files WHERE id = {PLACEHOLDER}",
+                (str(fid),), fetch=True,
+            )
+            if rows:
+                r = rows[0]
+                ext = os.path.splitext(r["name"])[1].lower()
+                is_image = ext in (".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp")
+                attachments.append({
+                    "fileId": r["id"], "name": r["name"],
+                    "size": r["size"], "isImage": is_image,
+                })
+
+    # пустое сообщение без вложений — не отправляем
+    if not text and not attachments:
         return jsonify({"error": "empty"}), 400
     text = text[:4000]
 
     recipient = None
     # Личное сообщение через команду:  /w имя текст
-    if kind == "text" and text.startswith("/w "):
+    if text.startswith("/w "):
         rest = text[3:].lstrip()
         parts = rest.split(None, 1)
         if len(parts) < 2 or not parts[1].strip():
             return jsonify({"error": "Используйте: /w <имя> сообщение"}), 400
         target = parts[0].strip().lstrip("@").lower()
         body = parts[1].strip()
-        # проверяем, что получатель существует
         exists = query(
             f"SELECT username FROM users WHERE username = {PLACEHOLDER}",
             (target,), fetch=True,
@@ -449,13 +581,94 @@ def send_message():
         recipient = exists[0]["username"]
         text = body[:4000]
 
+    att_json = json.dumps(attachments) if attachments else None
     query(
-        f"INSERT INTO messages (username, text, kind, created, recipient) "
-        f"VALUES ({PLACEHOLDER}, {PLACEHOLDER}, {PLACEHOLDER}, {PLACEHOLDER}, {PLACEHOLDER})",
-        (session["user"], text, kind, datetime.now(timezone.utc).isoformat(), recipient),
+        f"INSERT INTO messages (username, text, kind, created, recipient, reply_to, attachments) "
+        f"VALUES ({PLACEHOLDER}, {PLACEHOLDER}, {PLACEHOLDER}, {PLACEHOLDER}, {PLACEHOLDER}, {PLACEHOLDER}, {PLACEHOLDER})",
+        (session["user"], text, kind, datetime.now(timezone.utc).isoformat(),
+         recipient, reply_to, att_json),
         commit=True,
     )
     return jsonify({"ok": True, "private": recipient is not None})
+
+
+@app.route("/api/edit", methods=["POST"])
+def edit_message():
+    """Редактирование своего текстового сообщения."""
+    if "user" not in session:
+        return jsonify({"error": "auth"}), 401
+    data = request.json or {}
+    try:
+        mid = int(data.get("id"))
+    except Exception:
+        return jsonify({"error": "bad"}), 400
+    new_text = (data.get("text", "") or "").strip()[:4000]
+    if not new_text:
+        return jsonify({"error": "Текст не может быть пустым"}), 400
+    rows = query(
+        f"SELECT username, deleted FROM messages WHERE id = {PLACEHOLDER}",
+        (mid,), fetch=True,
+    )
+    if not rows:
+        return jsonify({"error": "not_found"}), 404
+    if rows[0]["username"] != session["user"]:
+        return jsonify({"error": "Можно редактировать только свои сообщения"}), 403
+    if rows[0].get("deleted"):
+        return jsonify({"error": "Сообщение удалено"}), 400
+    query(
+        f"UPDATE messages SET text = {PLACEHOLDER}, edited = 1 WHERE id = {PLACEHOLDER}",
+        (new_text, mid), commit=True,
+    )
+    return jsonify({"ok": True})
+
+
+@app.route("/api/delete", methods=["POST"])
+def delete_message():
+    """Удаление своего сообщения (мягкое — помечаем deleted)."""
+    if "user" not in session:
+        return jsonify({"error": "auth"}), 401
+    data = request.json or {}
+    try:
+        mid = int(data.get("id"))
+    except Exception:
+        return jsonify({"error": "bad"}), 400
+    rows = query(
+        f"SELECT username FROM messages WHERE id = {PLACEHOLDER}",
+        (mid,), fetch=True,
+    )
+    if not rows:
+        return jsonify({"error": "not_found"}), 404
+    if rows[0]["username"] != session["user"]:
+        return jsonify({"error": "Можно удалять только свои сообщения"}), 403
+    query(
+        f"UPDATE messages SET deleted = 1, text = '', attachments = NULL "
+        f"WHERE id = {PLACEHOLDER}",
+        (mid,), commit=True,
+    )
+    # убираем реакции удалённого сообщения
+    query(f"DELETE FROM reactions WHERE message_id = {PLACEHOLDER}", (mid,), commit=True)
+    return jsonify({"ok": True})
+
+
+@app.route("/api/changes")
+def get_changes():
+    """Состояние ранее показанных сообщений (для синхронизации
+    правок/удалений). Принимает ids=1,2,3 — возвращает их text/edited/deleted."""
+    if "user" not in session:
+        return jsonify({"error": "auth"}), 401
+    ids_param = request.args.get("ids", "")
+    try:
+        ids = [int(x) for x in ids_param.split(",") if x.strip()][:300]
+    except Exception:
+        ids = []
+    if not ids:
+        return jsonify([])
+    placeholders = ",".join([PLACEHOLDER] * len(ids))
+    rows = query(
+        f"SELECT id, text, edited, deleted FROM messages WHERE id IN ({placeholders})",
+        tuple(ids), fetch=True,
+    )
+    return jsonify(rows)
 
 
 # -----------------------------------------------------------------------------
@@ -479,28 +692,29 @@ def upload_file():
     f.save(path)
     size = os.path.getsize(path)
 
+    # хеш содержимого для дедупликации
+    file_hash = _hash_file(path)
+
     # является ли файл картинкой (для превью)
     ext = os.path.splitext(orig_name)[1].lower()
     is_image = ext in (".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp")
 
     query(
-        f"INSERT INTO files (id, name, size, path, owner, created) "
-        f"VALUES ({PLACEHOLDER}, {PLACEHOLDER}, {PLACEHOLDER}, {PLACEHOLDER}, {PLACEHOLDER}, {PLACEHOLDER})",
+        f"INSERT INTO files (id, name, size, path, owner, created, hash) "
+        f"VALUES ({PLACEHOLDER}, {PLACEHOLDER}, {PLACEHOLDER}, {PLACEHOLDER}, {PLACEHOLDER}, {PLACEHOLDER}, {PLACEHOLDER})",
         (file_id, orig_name, size, path, session["user"],
-         datetime.now(timezone.utc).isoformat()),
+         datetime.now(timezone.utc).isoformat(), file_hash),
         commit=True,
     )
 
-    # Создаём сообщение-карточку в чате
-    meta = {"fileId": file_id, "name": orig_name, "size": size, "isImage": is_image}
-    query(
-        f"INSERT INTO messages (username, text, kind, created) "
-        f"VALUES ({PLACEHOLDER}, {PLACEHOLDER}, {PLACEHOLDER}, {PLACEHOLDER})",
-        (session["user"], json.dumps(meta), "file",
-         datetime.now(timezone.utc).isoformat()),
-        commit=True,
-    )
-    return jsonify({"ok": True, "fileId": file_id})
+    # удаляем старые дубликаты этого же содержимого (оставляем самый новый)
+    dedup_files()
+
+    # Возвращаем метаданные — сообщение создаст /api/send как вложение
+    return jsonify({
+        "ok": True,
+        "fileId": file_id, "name": orig_name, "size": size, "isImage": is_image,
+    })
 
 
 @app.route("/api/file/<file_id>")
