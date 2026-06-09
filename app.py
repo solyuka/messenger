@@ -624,7 +624,7 @@ def edit_message():
 
 @app.route("/api/delete", methods=["POST"])
 def delete_message():
-    """Удаление своего сообщения (мягкое — помечаем deleted)."""
+    """Полное удаление своего сообщения (строка стирается из БД)."""
     if "user" not in session:
         return jsonify({"error": "auth"}), 401
     data = request.json or {}
@@ -640,20 +640,17 @@ def delete_message():
         return jsonify({"error": "not_found"}), 404
     if rows[0]["username"] != session["user"]:
         return jsonify({"error": "Можно удалять только свои сообщения"}), 403
-    query(
-        f"UPDATE messages SET deleted = 1, text = '', attachments = NULL "
-        f"WHERE id = {PLACEHOLDER}",
-        (mid,), commit=True,
-    )
-    # убираем реакции удалённого сообщения
+    # полностью удаляем сообщение и его реакции
+    query(f"DELETE FROM messages WHERE id = {PLACEHOLDER}", (mid,), commit=True)
     query(f"DELETE FROM reactions WHERE message_id = {PLACEHOLDER}", (mid,), commit=True)
     return jsonify({"ok": True})
 
 
 @app.route("/api/changes")
 def get_changes():
-    """Состояние ранее показанных сообщений (для синхронизации
-    правок/удалений). Принимает ids=1,2,3 — возвращает их text/edited/deleted."""
+    """Состояние ранее показанных сообщений (для синхронизации правок и
+    удалений). Принимает ids=1,2,3 — возвращает существующие (с text/edited)
+    и список missing — id, которых уже нет (удалены)."""
     if "user" not in session:
         return jsonify({"error": "auth"}), 401
     ids_param = request.args.get("ids", "")
@@ -662,13 +659,15 @@ def get_changes():
     except Exception:
         ids = []
     if not ids:
-        return jsonify([])
+        return jsonify({"items": [], "missing": []})
     placeholders = ",".join([PLACEHOLDER] * len(ids))
     rows = query(
-        f"SELECT id, text, edited, deleted FROM messages WHERE id IN ({placeholders})",
+        f"SELECT id, text, edited FROM messages WHERE id IN ({placeholders})",
         tuple(ids), fetch=True,
     )
-    return jsonify(rows)
+    present = {r["id"] for r in rows}
+    missing = [i for i in ids if i not in present]
+    return jsonify({"items": rows, "missing": missing})
 
 
 # -----------------------------------------------------------------------------

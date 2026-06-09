@@ -305,7 +305,6 @@
 
     /* отметка "изменено" и удалённое сообщение */
     .editedMark { font-size: 10px; opacity: .6; font-style: italic; margin-left: 4px; }
-    .deletedMsg { font-style: italic; opacity: .65; }
 
     /* редактирование сообщения на месте */
     .editArea {
@@ -781,11 +780,7 @@
       bubble.appendChild(tag);
     }
 
-    if(m.deleted){
-      const txt = document.createElement("div");
-      txt.className = "txt deletedMsg"; txt.textContent = "🚫 сообщение удалено";
-      bubble.appendChild(txt);
-    } else if(m.text){
+    if(m.text){
       const txt = document.createElement("div");
       txt.className = "txt"; txt.setAttribute("data-text-id", m.id);
       txt.innerHTML = linkify(m.text);
@@ -798,8 +793,8 @@
       bubble.appendChild(txt);
     }
 
-    // вложения (у удалённых не показываем)
-    (m.deleted ? [] : (m.attachments || [])).forEach(a=>{
+    // вложения
+    (m.attachments || []).forEach(a=>{
       if(a.isImage){
         const img = document.createElement("img");
         img.className = "imgprev"; img.src = "/api/image/" + a.fileId; img.alt = a.name;
@@ -841,8 +836,8 @@
     reactBtn.onclick = (e)=>{ e.stopPropagation(); openEmoji(String(m.id), reactBtn); };
     actions.appendChild(replyBtn); actions.appendChild(reactBtn);
 
-    // редактирование/удаление — только для своих текстовых, не удалённых
-    if(mine && !m.deleted){
+    // редактирование/удаление — только для своих сообщений
+    if(mine){
       if(m.text){
         const editBtn = document.createElement("button");
         editBtn.className = "actBtn"; editBtn.title = "Редактировать"; editBtn.textContent = "✏️";
@@ -855,7 +850,6 @@
       actions.appendChild(delBtn);
     }
 
-    if(m.deleted) row.classList.add("is-deleted");
     row.appendChild(avawrap); row.appendChild(bubble); row.appendChild(actions);
     box.appendChild(row);
     lastId = Math.max(lastId, m.id);
@@ -895,42 +889,33 @@
       if(!r.ok){ const e = await r.json().catch(()=>({})); showToast(e.error || "Не удалось изменить"); return; }
       // локально обновим сразу
       msgById[mid].text = newText; msgById[mid].edited = 1;
-      applyTextUpdate(mid, newText, true, false);
+      applyEdit(mid, newText, true);
       cleanup();
     }catch(e){ showToast("Ошибка сети"); }
   }
 
   async function deleteMessage(mid){
-    if(!confirm("Удалить это сообщение?")) return;
+    if(!confirm("Удалить это сообщение? Его нельзя будет вернуть.")) return;
     try{
       const r = await fetch("/api/delete", {method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({ id: mid })});
       if(!r.ok){ const e = await r.json().catch(()=>({})); showToast(e.error || "Не удалось удалить"); return; }
-      msgById[mid].deleted = 1; msgById[mid].text = "";
-      applyTextUpdate(mid, "", false, true);
+      removeMessage(mid);
     }catch(e){ showToast("Ошибка сети"); }
   }
 
-  // применить изменение текста/удаления к уже отрисованному сообщению
-  function applyTextUpdate(mid, text, edited, deleted){
+  // полностью убрать сообщение из чата
+  function removeMessage(mid){
+    const row = document.querySelector(`.row[data-msg-id="${mid}"]`);
+    if(row) row.remove();
+    delete msgById[mid];
+    shownIds.delete(parseInt(mid));
+  }
+
+  // применить правку текста к уже отрисованному сообщению
+  function applyEdit(mid, text, edited){
     const row = document.querySelector(`.row[data-msg-id="${mid}"]`);
     if(!row) return;
-    const bubble = row.querySelector(".bubble");
-    const txtEl = bubble.querySelector(".txt");
-    if(deleted){
-      row.classList.add("is-deleted");
-      // убираем вложения/реакции/кнопки редактирования
-      bubble.querySelectorAll(".imgprev,.imgcap,.file").forEach(el=>el.remove());
-      const rbox = bubble.querySelector(".reactions"); if(rbox) rbox.innerHTML = "";
-      row.querySelectorAll(".msgActions .actBtn").forEach((b)=>{
-        if(b.title === "Редактировать" || b.title === "Удалить") b.remove();
-      });
-      if(txtEl){ txtEl.className = "txt deletedMsg"; txtEl.textContent = "🚫 сообщение удалено"; }
-      else {
-        const d = document.createElement("div"); d.className = "txt deletedMsg"; d.textContent = "🚫 сообщение удалено";
-        bubble.insertBefore(d, bubble.querySelector(".time"));
-      }
-      return;
-    }
+    const txtEl = row.querySelector(".bubble .txt");
     if(txtEl){
       txtEl.innerHTML = linkify(text);
       if(edited){ const em = document.createElement("span"); em.className = "editedMark"; em.textContent = "(изменено)"; txtEl.appendChild(document.createTextNode(" ")); txtEl.appendChild(em); }
@@ -944,16 +929,16 @@
     try{
       const r = await fetch("/api/changes?ids=" + ids.join(","));
       if(!r.ok) return;
-      const list = await r.json();
-      list.forEach(ch=>{
+      const res = await r.json();
+      // удалённые — убираем из чата
+      (res.missing || []).forEach(id=> removeMessage(id));
+      // изменённые — обновляем текст
+      (res.items || []).forEach(ch=>{
         const local = msgById[ch.id];
         if(!local) return;
-        if(ch.deleted && !local.deleted){
-          local.deleted = 1; local.text = "";
-          applyTextUpdate(ch.id, "", false, true);
-        } else if(!ch.deleted && (ch.text !== local.text || ch.edited !== local.edited)){
+        if(ch.text !== local.text || ch.edited !== local.edited){
           local.text = ch.text; local.edited = ch.edited;
-          applyTextUpdate(ch.id, ch.text, !!ch.edited, false);
+          applyEdit(ch.id, ch.text, !!ch.edited);
         }
       });
     }catch(e){}
@@ -1250,7 +1235,7 @@
     document.querySelectorAll(".row[data-msg-id]").forEach(row=>{
       const mid = row.getAttribute("data-msg-id");
       const m = msgById[mid];
-      if(!m || m.deleted || !m.text) return;
+      if(!m || !m.text) return;
       if(m.text.toLowerCase().includes(q)){
         row.classList.add("search-hit");
         const t = row.querySelector(".txt");
