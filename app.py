@@ -109,7 +109,7 @@ def init_db():
         msgs_sql = """
             CREATE TABLE IF NOT EXISTS messages (
                 id SERIAL PRIMARY KEY, username TEXT NOT NULL, text TEXT NOT NULL,
-                kind TEXT DEFAULT 'text', created TEXT NOT NULL)"""
+                kind TEXT DEFAULT 'text', created TEXT NOT NULL, recipient TEXT)"""
         files_sql = """
             CREATE TABLE IF NOT EXISTS files (
                 id TEXT PRIMARY KEY, name TEXT NOT NULL, size INTEGER NOT NULL,
@@ -122,7 +122,8 @@ def init_db():
         msgs_sql = """
             CREATE TABLE IF NOT EXISTS messages (
                 id INTEGER PRIMARY KEY AUTOINCREMENT, username TEXT NOT NULL,
-                text TEXT NOT NULL, kind TEXT DEFAULT 'text', created TEXT NOT NULL)"""
+                text TEXT NOT NULL, kind TEXT DEFAULT 'text', created TEXT NOT NULL,
+                recipient TEXT)"""
         files_sql = """
             CREATE TABLE IF NOT EXISTS files (
                 id TEXT PRIMARY KEY, name TEXT NOT NULL, size INTEGER NOT NULL,
@@ -143,6 +144,7 @@ def init_db():
     safe_alter("ALTER TABLE users ADD COLUMN avatar TEXT")
     safe_alter("ALTER TABLE messages ADD COLUMN kind TEXT DEFAULT 'text'")
     safe_alter("ALTER TABLE users ADD COLUMN last_seen TEXT")
+    safe_alter("ALTER TABLE messages ADD COLUMN recipient TEXT")
 
 
 def cleanup_old():
@@ -398,10 +400,17 @@ def get_messages():
     touch_presence()
     cleanup_old()
     after = request.args.get("after", 0, type=int)
+    me = session["user"]
+    # Показываем: общие сообщения (recipient IS NULL) + личные, где я отправитель
+    # или получатель. Чужие личные не отдаём.
     rows = query(
-        f"SELECT id, username, text, kind, created FROM messages "
-        f"WHERE id > {PLACEHOLDER} ORDER BY id ASC LIMIT 200",
-        (after,), fetch=True,
+        f"SELECT id, username, text, kind, created, recipient FROM messages "
+        f"WHERE id > {PLACEHOLDER} AND ("
+        f"  recipient IS NULL"
+        f"  OR username = {PLACEHOLDER}"
+        f"  OR recipient = {PLACEHOLDER}"
+        f") ORDER BY id ASC LIMIT 200",
+        (after, me, me), fetch=True,
     )
     return jsonify(rows)
 
@@ -418,13 +427,35 @@ def send_message():
     if not text:
         return jsonify({"error": "empty"}), 400
     text = text[:4000]
+
+    recipient = None
+    # Личное сообщение через команду:  /w имя текст
+    if kind == "text" and text.startswith("/w "):
+        rest = text[3:].lstrip()
+        parts = rest.split(None, 1)
+        if len(parts) < 2 or not parts[1].strip():
+            return jsonify({"error": "Используйте: /w <имя> сообщение"}), 400
+        target = parts[0].strip().lstrip("@").lower()
+        body = parts[1].strip()
+        # проверяем, что получатель существует
+        exists = query(
+            f"SELECT username FROM users WHERE username = {PLACEHOLDER}",
+            (target,), fetch=True,
+        )
+        if not exists:
+            return jsonify({"error": f"Пользователь @{target} не найден"}), 400
+        if target == session["user"]:
+            return jsonify({"error": "Нельзя писать личное самому себе"}), 400
+        recipient = exists[0]["username"]
+        text = body[:4000]
+
     query(
-        f"INSERT INTO messages (username, text, kind, created) "
-        f"VALUES ({PLACEHOLDER}, {PLACEHOLDER}, {PLACEHOLDER}, {PLACEHOLDER})",
-        (session["user"], text, kind, datetime.now(timezone.utc).isoformat()),
+        f"INSERT INTO messages (username, text, kind, created, recipient) "
+        f"VALUES ({PLACEHOLDER}, {PLACEHOLDER}, {PLACEHOLDER}, {PLACEHOLDER}, {PLACEHOLDER})",
+        (session["user"], text, kind, datetime.now(timezone.utc).isoformat(), recipient),
         commit=True,
     )
-    return jsonify({"ok": True})
+    return jsonify({"ok": True, "private": recipient is not None})
 
 
 # -----------------------------------------------------------------------------

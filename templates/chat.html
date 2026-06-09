@@ -219,6 +219,41 @@
     }
     #uploadBar .track { flex: 1; height: 6px; background: var(--avatar-bg); border-radius: 3px; overflow: hidden; }
     #uploadBar .fill { height: 100%; width: 0%; background: var(--accent); transition: width .2s; }
+
+    /* @упоминание внутри текста */
+    .mention {
+      background: rgba(99,102,241,.18); color: var(--accent);
+      font-weight: 600; border-radius: 5px; padding: 0 3px;
+    }
+    .mine .mention { background: rgba(255,255,255,.25); color: #fff; }
+    /* подсветка сообщения, где упомянули меня */
+    .row.mention-me .bubble { box-shadow: 0 0 0 2px var(--accent); }
+
+    /* личное сообщение */
+    .pmtag {
+      font-size: 10px; font-weight: 700; letter-spacing: .3px;
+      color: #fff; background: #a855f7; border-radius: 6px;
+      padding: 1px 6px; margin-bottom: 3px; display: inline-block;
+    }
+    .theirs .pm .bubble { background: #f3e8ff; }
+    body.dark .theirs .pm .bubble { background: #3b2a52; }
+
+    /* выпадающий список автодополнения @ */
+    #mentionBox {
+      position: absolute; bottom: 60px; left: 60px; z-index: 50;
+      background: var(--panel); border: 1px solid var(--border);
+      border-radius: 10px; box-shadow: 0 4px 16px rgba(0,0,0,.25);
+      max-height: 200px; overflow-y: auto; min-width: 180px; display: none;
+    }
+    #mentionBox .item {
+      display: flex; align-items: center; gap: 8px; padding: 7px 10px; cursor: pointer;
+    }
+    #mentionBox .item.active, #mentionBox .item:hover { background: var(--icon-bg); }
+    #mentionBox .item img { width: 28px; height: 28px; border-radius: 50%; object-fit: cover; background: var(--avatar-bg); }
+    #mentionBox .item .nm { font-size: 14px; color: var(--text); }
+    #mentionBox .item .st { font-size: 10px; margin-left: auto; }
+    #mentionBox .item .st.on { color: #22c55e; }
+    #mentionBox .item .st.off { color: #ef4444; }
   </style>
 </head>
 <body>
@@ -258,7 +293,9 @@
     <span id="uploadPct">0%</span>
   </div>
 
-  <div class="hint">Файлы (до {{ max_mb }} МБ) хранятся 24 часа. Enter — отправить, Shift+Enter — новая строка.</div>
+  <div class="hint">Файлы хранятся 24 ч · Enter — отправить · @имя — упомянуть · /w имя текст — личное сообщение</div>
+
+  <div id="mentionBox"></div>
 
   <form id="form">
     <button type="button" class="iconbtn" id="fileBtn" title="Прикрепить файл">📎</button>
@@ -277,6 +314,7 @@
   let lastId = 0;
   let avatars = {};
   let presence = {};
+  let usersList = [];           // [{username, online}] для автодополнения @
   const shownIds = new Set();
   let polling = false;
   let unread = 0;                 // непрочитанные (когда вкладка не активна / прокручен вверх)
@@ -304,10 +342,18 @@
     return d.toLocaleDateString([], {day:"numeric", month:"long", year:"numeric"});
   }
 
-  // текст со ссылками -> кликабельные ссылки
+  // текст -> ссылки + @упоминания
   function linkify(text){
-    const esc = escapeHtml(text);
-    return esc.replace(/(https?:\/\/[^\s<]+)/g, '<a href="$1" target="_blank" rel="noopener">$1</a>');
+    let esc = escapeHtml(text);
+    esc = esc.replace(/(https?:\/\/[^\s<]+)/g, '<a href="$1" target="_blank" rel="noopener">$1</a>');
+    // @никнейм (буквы/цифры/._-)
+    esc = esc.replace(/@([A-Za-z0-9_.\-а-яёА-ЯЁ]+)/g, '<span class="mention">@$1</span>');
+    return esc;
+  }
+  // упомянут ли я в тексте
+  function mentionsMe(text){
+    const re = new RegExp("@" + me.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "\\b", "i");
+    return re.test(text || "");
   }
 
   // ===================================================== ТЕМА
@@ -346,6 +392,37 @@
       o.start(); o.stop(ctx.currentTime + 0.26);
     }catch(e){}
   }
+  // двойной сигнал, когда упомянули лично/через @
+  function pingSound(){
+    if(!soundOn) return;
+    try{
+      const ctx = new (window.AudioContext || window.webkitAudioContext)();
+      [880, 1175].forEach((fr, i)=>{
+        const o = ctx.createOscillator(); const g = ctx.createGain();
+        o.connect(g); g.connect(ctx.destination);
+        o.type = "sine"; o.frequency.value = fr;
+        const t = ctx.currentTime + i*0.18;
+        g.gain.setValueAtTime(0.0001, t);
+        g.gain.exponentialRampToValueAtTime(0.16, t + 0.02);
+        g.gain.exponentialRampToValueAtTime(0.0001, t + 0.16);
+        o.start(t); o.stop(t + 0.17);
+      });
+    }catch(e){}
+  }
+  // системное уведомление, когда вкладка не активна
+  function notifyDesktop(){
+    if(document.visibilityState === "visible") return;
+    try{
+      if(window.Notification && Notification.permission === "granted"){
+        new Notification("💬 Вас упомянули в чате");
+      }
+    }catch(e){}
+  }
+  // спросить разрешение на уведомления (после первого клика)
+  document.addEventListener("click", function askNotif(){
+    try{ if(window.Notification && Notification.permission === "default"){ Notification.requestPermission(); } }catch(e){}
+    document.removeEventListener("click", askNotif);
+  });
 
   // ===================================================== заголовок вкладки
   function updateTitle(){
@@ -397,6 +474,7 @@
       const r = await fetch("/api/users");
       if(!r.ok) return;
       const users = await r.json();
+      usersList = users.map(u => ({ username: u.username, online: u.online }));
       presence = {};
       users.forEach(u => { presence[u.username] = u.online; if(u.avatar) avatars[u.username] = u.avatar; });
       presence[me] = true;
@@ -515,8 +593,12 @@
     }
 
     const mine = m.username === me;
+    const isPrivate = !!m.recipient;
     const row = document.createElement("div");
     row.className = "row " + (mine ? "mine" : "theirs");
+    if(isPrivate) row.classList.add("pm");
+    // подсветка, если упомянули меня (в общем сообщении)
+    if(!mine && !isPrivate && mentionsMe(m.text)) row.classList.add("mention-me");
 
     const avawrap = document.createElement("div");
     avawrap.className = "avawrap";
@@ -568,8 +650,15 @@
       reads.className = "reads"; reads.setAttribute("data-reads-id", m.id);
       bubble.appendChild(reads);
     } else {
-      bubble.innerHTML = `<div class="who"></div><div class="txt"></div><div class="time">${fmtTime(m.created)}</div><div class="reads" data-reads-id="${m.id}"></div>`;
+      bubble.innerHTML = `<div class="who"></div><div class="pmline"></div><div class="txt"></div><div class="time">${fmtTime(m.created)}</div><div class="reads" data-reads-id="${m.id}"></div>`;
       bubble.querySelector(".who").textContent = m.username;
+      // плашка личного сообщения
+      if(isPrivate){
+        const tag = document.createElement("span");
+        tag.className = "pmtag";
+        tag.textContent = mine ? ("🔒 лично → " + m.recipient) : "🔒 лично вам";
+        bubble.querySelector(".pmline").appendChild(tag);
+      }
       bubble.querySelector(".txt").innerHTML = linkify(m.text);
     }
 
@@ -588,17 +677,25 @@
       if(res.status === 401){ location.href="/login"; return; }
       const data = await res.json();
       const wasNear = nearBottom();
-      let addedOther = 0, addedMine = 0;
+      let addedOther = 0, addedMine = 0, pinged = false;
       data.forEach(m => {
-        if(!shownIds.has(m.id)){ addMessage(m); (m.username === me ? addedMine++ : addedOther++); }
+        if(!shownIds.has(m.id)){
+          addMessage(m);
+          if(m.username === me){ addedMine++; }
+          else {
+            addedOther++;
+            // меня упомянули (@me) или это личное мне — особый пинг
+            if(m.recipient === me || (!m.recipient && mentionsMe(m.text))) pinged = true;
+          }
+        }
       });
       if(addedMine || (addedOther && wasNear)) box.scrollTop = box.scrollHeight;
 
       if(addedOther){
         // звук + счётчик, если вкладка не активна или прокручено вверх
         const active = document.visibilityState === "visible" && wasNear;
-        if(!active){ unread += addedOther; updateTitle(); beep(); showScrollBadge(); }
-        else { beep(); }
+        if(!active){ unread += addedOther; updateTitle(); showScrollBadge(); }
+        if(pinged){ pingSound(); notifyDesktop(); } else { beep(); }
       }
       if(nearBottom() && document.visibilityState === "visible"){ unread = 0; updateTitle(); reportRead(); }
     }catch(e){}
@@ -617,21 +714,100 @@
     if(nearBottom()){ unread = 0; updateTitle(); scrollBadge.style.display="none"; if(document.visibilityState==="visible") reportRead(); }
   });
 
+  // ===================================================== автодополнение @
+  const mentionBox = document.getElementById("mentionBox");
+  let mentionItems = [];      // текущие варианты
+  let mentionActive = -1;     // выбранный пунк
+  let mentionStart = -1;      // позиция "@" в тексте
+
+  function closeMention(){ mentionBox.style.display = "none"; mentionItems = []; mentionActive = -1; mentionStart = -1; }
+
+  function updateMention(){
+    const pos = input.selectionStart;
+    const before = input.value.slice(0, pos);
+    // ищем "@слово" вплотную к курсору (без пробела внутри)
+    const m = before.match(/(^|\s)@([A-Za-z0-9_.\-а-яёА-ЯЁ]*)$/);
+    if(!m){ closeMention(); return; }
+    mentionStart = pos - m[2].length - 1;   // позиция символа "@"
+    const q = m[2].toLowerCase();
+    const cands = usersList
+      .filter(u => u.username !== me && u.username.toLowerCase().startsWith(q))
+      .slice(0, 6);
+    if(cands.length === 0){ closeMention(); return; }
+    mentionItems = cands; mentionActive = 0;
+    renderMention();
+  }
+
+  function renderMention(){
+    mentionBox.innerHTML = "";
+    mentionItems.forEach((u, i)=>{
+      const it = document.createElement("div");
+      it.className = "item" + (i === mentionActive ? " active" : "");
+      it.innerHTML = `<img><span class="nm"></span><span class="st ${u.online?"on":"off"}">${u.online?"●":"○"}</span>`;
+      it.querySelector("img").src = avaFor(u.username);
+      it.querySelector(".nm").textContent = u.username;
+      it.onmousedown = (e)=>{ e.preventDefault(); pickMention(i); };
+      mentionBox.appendChild(it);
+    });
+    mentionBox.style.display = "block";
+  }
+
+  function pickMention(i){
+    const u = mentionItems[i]; if(!u) return;
+    const pos = input.selectionStart;
+    const after = input.value.slice(pos);
+    const before = input.value.slice(0, mentionStart);
+    input.value = before + "@" + u.username + " " + after;
+    const newPos = (before + "@" + u.username + " ").length;
+    input.setSelectionRange(newPos, newPos);
+    closeMention(); input.focus(); autoGrow();
+  }
+
   // ===================================================== ввод
   function autoGrow(){ input.style.height = "auto"; input.style.height = Math.min(input.scrollHeight, 120) + "px"; }
-  input.addEventListener("input", ()=>{ autoGrow(); notifyTyping(); });
+  input.addEventListener("input", ()=>{ autoGrow(); notifyTyping(); updateMention(); });
   input.addEventListener("keydown", (e)=>{
+    // навигация по списку автодополнения
+    if(mentionBox.style.display === "block" && mentionItems.length){
+      if(e.key === "ArrowDown"){ e.preventDefault(); mentionActive = (mentionActive+1)%mentionItems.length; renderMention(); return; }
+      if(e.key === "ArrowUp"){ e.preventDefault(); mentionActive = (mentionActive-1+mentionItems.length)%mentionItems.length; renderMention(); return; }
+      if(e.key === "Enter" || e.key === "Tab"){ e.preventDefault(); pickMention(mentionActive); return; }
+      if(e.key === "Escape"){ closeMention(); return; }
+    }
     if(e.key === "Enter" && !e.shiftKey){ e.preventDefault(); form.requestSubmit(); }
   });
+  input.addEventListener("blur", ()=> setTimeout(closeMention, 150));
 
   form.addEventListener("submit", async (e)=>{
     e.preventDefault();
     const text = input.value.trim(); if(!text) return;
+    closeMention();
     input.value = ""; autoGrow();
-    await fetch("/api/send",{method:"POST",headers:{"Content-Type":"application/json"},
-      body: JSON.stringify({ text })});
+    try{
+      const r = await fetch("/api/send",{method:"POST",headers:{"Content-Type":"application/json"},
+        body: JSON.stringify({ text })});
+      if(!r.ok){
+        const err = await r.json().catch(()=>({}));
+        // вернём текст обратно и покажем ошибку (например, неверная /w команда)
+        input.value = text; autoGrow();
+        showToast(err.error || "Не удалось отправить");
+        return;
+      }
+    }catch(e){ input.value = text; autoGrow(); showToast("Ошибка сети"); return; }
     pollMessages();
   });
+
+  // маленькое всплывающее уведомление об ошибке
+  function showToast(msg){
+    let t = document.getElementById("toast");
+    if(!t){
+      t = document.createElement("div"); t.id = "toast";
+      t.style.cssText = "position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:#ef4444;color:#fff;padding:10px 16px;border-radius:10px;font-size:14px;z-index:200;box-shadow:0 2px 10px rgba(0,0,0,.3)";
+      document.body.appendChild(t);
+    }
+    t.textContent = msg; t.style.display = "block";
+    clearTimeout(t._tm); t._tm = setTimeout(()=> t.style.display = "none", 3500);
+  }
 
   // ===================================================== загрузка файла
   const MAX_BYTES = {{ max_mb }} * 1024 * 1024;
