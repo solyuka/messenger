@@ -56,6 +56,16 @@
       font-family: -apple-system, Segoe UI, Roboto, sans-serif;
       background: var(--bg); display: flex; flex-direction: column;
       color: var(--text); transition: background .25s, color .25s;
+      /* запрет выделения/копирования интерфейса по умолчанию */
+      -webkit-user-select: none; -moz-user-select: none; -ms-user-select: none; user-select: none;
+      -webkit-tap-highlight-color: transparent;
+    }
+    /* картинки и иконки нельзя перетаскивать */
+    img { -webkit-user-drag: none; user-drag: none; }
+    /* текст сообщений — выделять и копировать МОЖНО */
+    .bubble .txt, .imgcap, .file .name {
+      -webkit-user-select: text; -moz-user-select: text; -ms-user-select: text; user-select: text;
+      cursor: text;
     }
     header {
       background: var(--header); color: var(--header-text); padding: 10px 16px;
@@ -89,6 +99,16 @@
       display: flex; gap: 16px; padding: 10px 16px; background: var(--panel);
       border-bottom: 1px solid var(--border); overflow-x: auto; flex-shrink: 0;
     }
+    /* по умолчанию свёрнуто */
+    #members.collapsed { display: none; }
+    .memToggle {
+      border: none; background: rgba(255,255,255,.15); color: var(--header-text);
+      font-size: 12px; padding: 3px 9px; border-radius: 12px; cursor: pointer;
+      margin-left: 8px; vertical-align: middle;
+    }
+    .memToggle:hover { background: rgba(255,255,255,.28); }
+    #memArrow { display: inline-block; transition: transform .2s; }
+    .memToggle.open #memArrow { transform: rotate(90deg); }
     #members .member { display: flex; flex-direction: column; align-items: center; gap: 4px; min-width: 56px; }
     #members .avawrap .ava {
       width: 46px; height: 46px; border-radius: 50%; object-fit: cover; background: var(--avatar-bg);
@@ -208,14 +228,16 @@
       <span class="dot online" id="myDot"></span>
     </div>
     <div class="title">
-      <h1>💬 Общий чат</h1>
+      <h1>💬 Общий чат
+        <button class="memToggle" id="memToggle" title="Показать участников">👥 <span id="memCount"></span> <span id="memArrow">▸</span></button>
+      </h1>
       <div class="me">{{ user }} · <a href="/logout">выйти</a></div>
     </div>
     <button class="headbtn" id="soundBtn" title="Звук уведомлений">🔔</button>
     <button class="headbtn" id="themeBtn" title="Сменить тему">🌙</button>
   </header>
 
-  <div id="members"></div>
+  <div id="members" class="collapsed"></div>
 
   <div id="chatArea">
     <div id="messages"></div>
@@ -391,6 +413,9 @@
   function renderMembers(users){
     const cont = document.getElementById("members");
     cont.innerHTML = "";
+    // счётчик "онлайн/всего" на кнопке
+    const onlineCount = users.filter(u => u.username === me ? true : u.online).length;
+    document.getElementById("memCount").textContent = onlineCount + "/" + users.length;
     users.sort((a,b)=> (b.online?1:0)-(a.online?1:0) || a.username.localeCompare(b.username));
     users.forEach(u=>{
       const online = u.username === me ? true : u.online;
@@ -408,6 +433,13 @@
       cont.appendChild(m);
     });
   }
+
+  // ===================================================== сворачивание панели участников
+  document.getElementById("memToggle").onclick = ()=>{
+    const cont = document.getElementById("members");
+    const collapsed = cont.classList.toggle("collapsed");
+    document.getElementById("memToggle").classList.toggle("open", !collapsed);
+  };
 
   // ===================================================== "печатает…"
   let typingTimer = 0;
