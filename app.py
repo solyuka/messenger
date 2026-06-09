@@ -258,6 +258,32 @@ def heartbeat():
     return jsonify({"ok": True})
 
 
+# Кто сейчас печатает: username -> время последнего сигнала
+TYPING = {}
+
+
+@app.route("/api/typing", methods=["POST"])
+def set_typing():
+    """Пользователь сообщает, что печатает."""
+    if "user" not in session:
+        return jsonify({"error": "auth"}), 401
+    TYPING[session["user"]] = datetime.now(timezone.utc)
+    return jsonify({"ok": True})
+
+
+@app.route("/api/typing")
+def get_typing():
+    """Кто печатает прямо сейчас (был сигнал в последние 4 сек), кроме меня."""
+    if "user" not in session:
+        return jsonify({"error": "auth"}), 401
+    now = datetime.now(timezone.utc)
+    active = [
+        u for u, t in TYPING.items()
+        if u != session["user"] and (now - t).total_seconds() <= 4
+    ]
+    return jsonify(active)
+
+
 def is_online(last_seen):
     if not last_seen:
         return False
